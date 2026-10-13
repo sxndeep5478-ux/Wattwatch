@@ -1,0 +1,1691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="WattWatch: live campus energy dashboard that finds rooms wasting power and switches them off.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>WattWatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: marketplace-style room list beside a sticky campus map; white ground, one forest-green accent used sparingly. Deliberately light-only. */
+:root{
+  --bg:#FFFFFF; --surface:#F7F7F7; --line:#DDDDDD; --line-2:#EBEBEB;
+  --ink:#222222; --ink-2:#6A6A6A; --ink-3:#8F8F8F;
+  --accent:#0B6E4F; --accent-hover:#08583F; --accent-soft:#E5F0EB;
+  --ok:#2E7D32; --warn:#B7791F; --bad:#C62828; --bad-soft:#FCEEEE; --warn-soft:#FBF3E3;
+  --map-ground:#EEF0EA; --map-green:#DAE5D0; --map-bld:#E4E1D9; --map-edge:#CBC6BA; --map-road:#FFFFFF;
+  --shadow:0 6px 16px rgba(0,0,0,.12); --shadow-sm:0 1px 2px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.05);
+  --font:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --ease:cubic-bezier(.2,0,0,1);
+  --gut:80px; --hdr:170px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+input,select{font:inherit;color:inherit}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1760px;margin:0 auto;padding-inline:var(--gut)}
+.tnum{font-variant-numeric:tabular-nums}
+h1,h2,h3{text-wrap:balance;margin:0;font-weight:600;letter-spacing:-.01em}
+p{margin:0}
+.muted{color:var(--ink-2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:60;background:var(--bg);border-bottom:1px solid var(--line-2)}
+.row1{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:76px;gap:16px}
+.logo{display:flex;align-items:center;gap:8px;color:var(--accent);font-weight:700;font-size:20px;letter-spacing:-.02em;text-decoration:none;justify-self:start}
+.nav{display:flex;gap:4px}
+.nav a{position:relative;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:24px;text-decoration:none;color:var(--ink-2);font-weight:500;transition:background .2s var(--ease),color .2s}
+.nav a:hover{background:var(--surface);color:var(--ink)}
+.nav a.on{color:var(--ink);font-weight:600}
+.nav a.on::after{content:"";position:absolute;left:14px;right:14px;bottom:2px;height:2px;background:var(--ink);border-radius:2px}
+.nav .badge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center}
+.right{justify-self:end;display:flex;align-items:center;gap:8px}
+.clock{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:20px;font-size:13px;font-weight:500;color:var(--ink-2)}
+.clock .live{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(46,125,50,.15)}
+.iconbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;position:relative;transition:background .2s}
+.iconbtn:hover{background:var(--surface)}
+.iconbtn .dot{position:absolute;top:7px;right:7px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--bad);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
+.avatar{display:flex;align-items:center;gap:10px;padding:5px 5px 5px 12px;border:1px solid var(--line);border-radius:24px;transition:box-shadow .2s}
+.avatar:hover{box-shadow:var(--shadow-sm)}
+.avatar span{width:30px;height:30px;border-radius:50%;background:#3E4A43;color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center}
+.searchrow{display:flex;justify-content:center;padding-bottom:20px;max-height:110px;transition:max-height .25s var(--ease),opacity .2s,padding .25s var(--ease)}
+.top.compact .searchrow{max-height:0;opacity:0;padding-bottom:0;overflow:hidden}
+.search{position:relative;display:flex;align-items:center;border:1px solid var(--line);border-radius:40px;box-shadow:var(--shadow-sm);background:var(--bg);width:min(780px,100%);height:64px}
+.seg{flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:center;text-align:left;padding:0 28px;border-radius:40px;position:relative;transition:background .2s}
+.seg:hover,.seg.open{background:var(--surface)}
+.seg + .seg::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:1px;background:var(--line)}
+.seg:hover::before,.seg:hover + .seg::before,.seg.open::before,.seg.open + .seg::before{opacity:0}
+.seg b{font-size:12px;font-weight:600}
+.seg span,.seg input{font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg input{border:0;background:transparent;outline:none;padding:0;width:100%}
+.seg input::placeholder{color:var(--ink-2)}
+.searchbtn{flex:none;width:48px;height:48px;margin-right:8px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;transition:background .2s}
+.searchbtn:hover{background:var(--accent-hover)}
+.pop{position:absolute;top:calc(100% + 10px);background:var(--bg);border-radius:24px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:12px;min-width:300px;z-index:70;animation:popin .2s var(--ease)}
+@keyframes popin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pop button{display:flex;width:100%;justify-content:space-between;align-items:center;gap:16px;padding:12px 14px;border-radius:12px;text-align:left}
+.pop button:hover,.pop button.sel{background:var(--surface)}
+.pop small{color:var(--ink-2);font-size:13px}
+
+/* categories */
+.cats{display:flex;align-items:center;gap:20px;border-top:1px solid var(--line-2);padding-top:6px}
+.catscroll{position:relative;flex:1;min-width:0}
+.catrow{display:flex;gap:34px;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth}
+.catrow::-webkit-scrollbar{display:none}
+.cat{flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 12px;font-size:12px;font-weight:600;color:var(--ink-2);border-bottom:2px solid transparent;transition:color .2s,border-color .2s;position:relative}
+.cat:hover{color:var(--ink);border-color:var(--line)}
+.cat.on{color:var(--ink);border-color:var(--ink)}
+.cat .cnt{position:absolute;top:4px;right:-12px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--bad);color:#fff;font-size:10px;display:grid;place-items:center}
+.catarrow{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--bg);display:grid;place-items:center;z-index:2;transition:box-shadow .2s,opacity .2s}
+.catarrow:hover{box-shadow:var(--shadow-sm)}
+.catarrow.l{left:0}.catarrow.r{right:0}
+.catscroll::before,.catscroll::after{content:"";position:absolute;top:0;bottom:0;width:60px;z-index:1;pointer-events:none}
+.catscroll::before{left:0;background:linear-gradient(90deg,var(--bg) 45%,rgba(255,255,255,0))}
+.catscroll::after{right:0;background:linear-gradient(270deg,var(--bg) 45%,rgba(255,255,255,0))}
+.catscroll.atstart::before,.catscroll.atstart .catarrow.l,.catscroll.atend::after,.catscroll.atend .catarrow.r{opacity:0;pointer-events:none}
+.filterbtn{flex:none;display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;border:1px solid var(--line);border-radius:12px;font-size:13px;font-weight:600;transition:border-color .2s,background .2s}
+.filterbtn:hover{border-color:var(--ink);background:var(--surface)}
+.filterbtn .n{width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;display:grid;place-items:center}
+
+/* explore */
+main{min-height:60vh}
+.summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 20px;padding-block:22px 4px;font-size:15px}
+.summary strong{font-weight:600}
+.summary .sep{width:1px;height:14px;background:var(--line);align-self:center}
+.summary a{font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.explore{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,42%);gap:28px;padding-block:20px 56px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:40px 24px;align-content:start}
+.card{cursor:pointer;min-width:0}
+.ph{position:relative;aspect-ratio:20/19;max-width:100%;border-radius:12px;overflow:hidden;background:var(--surface);transition:box-shadow .2s}
+.card.hl .ph{box-shadow:0 0 0 2px var(--ink)}
+.track{display:flex;height:100%;transition:transform .32s var(--ease)}
+.slide{flex:0 0 100%;height:100%;overflow:hidden;position:relative}
+.slide > svg{display:block;width:100%;height:100%;transition:transform .3s var(--ease)}
+.card:hover .slide > svg{transform:scale(1.03)}
+.slide .cap{position:absolute;left:12px;bottom:28px;font-size:11px;font-weight:600;background:rgba(255,255,255,.9);padding:3px 8px;border-radius:6px}
+.stpill{position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.96);border-radius:16px;padding:5px 10px;font-size:12px;font-weight:600;box-shadow:var(--shadow-sm);z-index:2;max-width:calc(100% - 64px)}
+.stpill span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dotc{width:8px;height:8px;border-radius:50%;flex:none;background:var(--ink-3)}
+.t-ok{background:var(--ok)}.t-bad{background:var(--bad)}.t-warn{background:var(--warn)}.t-off{background:var(--ink-3)}
+.bm{position:absolute;top:8px;right:8px;width:36px;height:36px;display:grid;place-items:center;z-index:2;color:#fff;transition:transform .15s}
+.bm:hover{transform:scale(1.08)}
+.bm svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+.bm.on svg{fill:var(--accent);color:#fff}
+.arr{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.94);display:grid;place-items:center;opacity:0;transition:opacity .2s,transform .2s;z-index:2;box-shadow:var(--shadow-sm)}
+.arr:hover{transform:translateY(-50%) scale(1.06)}
+.arr.l{left:10px}.arr.r{right:10px}
+.card:hover .arr,.arr:focus-visible{opacity:1}
+.arr[hidden]{display:none!important}
+.dots{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:5px;z-index:2}
+.dots i{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.55;transition:opacity .2s,transform .2s}
+.dots i.on{opacity:1;transform:scale(1.15)}
+.meta{padding-top:12px;display:grid;gap:1px;font-size:15px}
+.meta .t{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.meta .t span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta .t span:last-child{font-weight:500;font-size:14px;flex:none}
+.meta .l{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta .p{margin-top:5px}
+.meta .p b{font-weight:600}
+.meta .p.bad b{color:var(--bad)}
+.empty{grid-column:1/-1;padding:64px 0;text-align:center;color:var(--ink-2)}
+.empty h3{color:var(--ink);font-size:18px;margin-bottom:6px}
+.empty button{margin-top:16px}
+
+.mapcol{position:relative;min-width:0}
+.mapwrap{position:sticky;top:calc(var(--hdr) + 16px);height:calc(100vh - var(--hdr) - 36px);min-height:420px;border-radius:16px;overflow:hidden;background:var(--map-ground);border:1px solid var(--line-2)}
+.mapwrap > svg{width:100%;height:100%;display:block}
+.mk{cursor:pointer}
+.mk g.inner{transform-box:fill-box;transform-origin:center;transition:transform .2s var(--ease)}
+.mk rect.pillbg{fill:#fff;stroke:#D4D4D4;transition:fill .2s}
+.mk text{font:700 13px var(--font);fill:var(--ink);transition:fill .2s}
+.mk:hover g.inner,.mk.hl g.inner{transform:scale(1.1)}
+.mk:hover rect.pillbg,.mk.hl rect.pillbg,.mk.sel rect.pillbg{fill:var(--ink);stroke:var(--ink)}
+.mk:hover text,.mk.hl text,.mk.sel text{fill:#fff}
+.bld{fill:var(--map-bld);stroke:var(--map-edge);stroke-width:1.2;transition:fill .2s,stroke .2s}
+.bld.hl{fill:#D9D5CB;stroke:var(--ink);stroke-width:2}
+.pulse{transform-box:fill-box;transform-origin:center;animation:pulse 1.8s ease-out infinite}
+@keyframes pulse{from{transform:scale(1);opacity:.55}to{transform:scale(3.4);opacity:0}}
+.maplegend{position:absolute;left:14px;bottom:14px;background:var(--bg);border-radius:12px;box-shadow:var(--shadow-sm);padding:10px 14px;font-size:12px;display:grid;gap:6px}
+.maplegend b{font-weight:600;font-size:12px}
+.maplegend div{display:flex;gap:12px;color:var(--ink-2)}
+.maplegend span{display:flex;align-items:center;gap:5px}
+.mapclear{position:absolute;top:14px;left:14px;background:var(--bg);border-radius:20px;box-shadow:var(--shadow-sm);padding:8px 14px;font-size:13px;font-weight:600;display:flex;gap:6px;align-items:center}
+.maptoggle{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:55;background:var(--ink);color:#fff;border-radius:24px;padding:13px 20px;font-weight:600;font-size:14px;gap:8px;align-items:center;box-shadow:var(--shadow);transition:transform .15s}
+.maptoggle:hover{transform:translateX(-50%) scale(1.04)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 24px;border-radius:8px;font-weight:600;font-size:16px;transition:background .2s,transform .1s,border-color .2s}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-danger{background:var(--bad);color:#fff}
+.btn-danger:hover{background:#A71F1F}
+.btn-line{border:1px solid var(--ink);background:var(--bg)}
+.btn-line:hover{background:var(--surface)}
+.btn-sm{height:34px;padding:0 14px;font-size:13px;border-radius:8px}
+.btn-block{width:100%}
+.ulink{font-weight:600;text-decoration:underline;text-underline-offset:3px}
+
+/* room page */
+.back{display:inline-flex;align-items:center;gap:6px;padding:20px 0 4px;font-weight:600;font-size:14px}
+.rhead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding-block:12px 20px}
+.rhead h1{font-size:26px}
+.rhead .acts{display:flex;gap:4px}
+.rhead .acts button{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.rhead .acts button:hover{background:var(--surface)}
+.photos{position:relative;display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;height:clamp(280px,38vw,460px);border-radius:12px;overflow:hidden}
+.photos > div{overflow:hidden;background:var(--surface);cursor:pointer;position:relative}
+.photos > div:first-child{grid-row:1/3}
+.photos > div > svg{width:100%;height:100%;display:block;transition:filter .2s}
+.photos > div:hover > svg{filter:brightness(.92)}
+.photos .allbtn{position:absolute;right:20px;bottom:20px;background:var(--bg);border:1px solid var(--ink);border-radius:8px;padding:8px 14px;font-size:14px;font-weight:600;display:flex;gap:8px;align-items:center}
+.rbody{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:clamp(32px,6vw,96px);padding-bottom:64px}
+.sec{padding-block:30px;border-bottom:1px solid var(--line-2)}
+.sec:first-child{padding-top:30px}
+.sec h2{font-size:22px;margin-bottom:6px}
+.sec .sub{color:var(--ink-2);margin-bottom:18px}
+.kicker{font-size:22px;font-weight:600}
+.kick-sub{color:var(--ink-2);margin-top:2px}
+.chartbox{overflow-x:auto}
+.chartbox svg{display:block;width:100%;height:auto;min-width:420px}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--ink-2);margin-top:10px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.applist{display:grid;gap:0}
+.app{display:grid;grid-template-columns:32px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line-2)}
+.app:last-child{border-bottom:0}
+.app .nm{font-weight:500}
+.app .nm small{display:block;color:var(--ink-2);font-size:13px;font-weight:400}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:14px;background:var(--surface);color:var(--ink-2);white-space:nowrap}
+.chip.on{background:var(--accent-soft);color:var(--accent)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.occ{position:relative;height:44px;margin-top:8px}
+.occ .rail{position:absolute;left:0;right:0;top:14px;height:16px;border-radius:8px;background:var(--surface)}
+.occ .blk{position:absolute;top:14px;height:16px;background:var(--accent-soft);border-radius:4px}
+.occ .pres{position:absolute;top:18px;height:8px;background:var(--accent);border-radius:4px}
+.occ .waste{position:absolute;top:18px;height:8px;background:var(--bad);border-radius:4px;opacity:.85}
+.occ .now{position:absolute;top:6px;bottom:6px;width:2px;background:var(--ink);border-radius:1px}
+.occ .now::after{content:"Now";position:absolute;top:-8px;left:6px;font-size:11px;font-weight:600}
+.occaxis{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-2)}
+.person{display:flex;gap:16px;align-items:center}
+.person .av{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-size:18px;flex:none}
+.person h3{font-size:16px}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:28px 48px;margin-top:8px}
+.note .who{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.note .who .av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-size:14px;flex:none}
+.note .who b{display:block;font-size:15px;font-weight:600}
+.note .who small{color:var(--ink-2);font-size:13px}
+.note p{max-width:62ch}
+.stick{position:sticky;top:calc(var(--hdr) + 28px);align-self:start;padding-top:30px}
+.rcard{border:1px solid var(--line);border-radius:12px;padding:24px;box-shadow:var(--shadow);background:var(--bg)}
+.rcard .price{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.rcard .price b{font-size:24px;font-weight:600}
+.rcard .rows{border:1px solid var(--line);border-radius:10px;margin:18px 0;display:grid;grid-template-columns:1fr 1fr}
+.rcard .rows div{padding:10px 14px}
+.rcard .rows div:nth-child(odd){border-right:1px solid var(--line)}
+.rcard .rows div:nth-child(n+3){border-top:1px solid var(--line)}
+.rcard .rows small{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.rcard .warnline{color:var(--bad);font-weight:600;margin-bottom:14px;display:flex;gap:8px;align-items:flex-start}
+.rcard .okline{color:var(--ok);font-weight:600;margin-bottom:14px;display:flex;gap:8px;align-items:center}
+.rcard .fine{font-size:13px;color:var(--ink-2);margin-top:14px;text-align:center}
+.rcard .tot{display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:18px;padding-top:16px;font-weight:600}
+.checkmark{width:22px;height:22px;flex:none}
+.checkmark path{stroke-dasharray:24;stroke-dashoffset:24;animation:draw .45s .1s var(--ease) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:90;display:grid;place-items:center;padding:16px;animation:fade .2s}
+@keyframes fade{from{opacity:0}}
+.dialog{background:var(--bg);border-radius:12px;width:min(560px,100%);max-height:88vh;overflow:auto;animation:up .25s var(--ease);box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.dialog.wide{width:min(980px,100%)}
+@keyframes up{from{opacity:0;transform:translateY(8px)}}
+.dialog header{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line-2);text-align:center;font-weight:600;font-size:16px;position:sticky;top:0;background:var(--bg);z-index:1}
+.dialog .bd{padding:24px}
+.dialog footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 24px;border-top:1px solid var(--line-2);position:sticky;bottom:0;background:var(--bg)}
+.gallery{display:grid;gap:24px}
+.gallery figure{margin:0}
+.gallery figure > svg{width:100%;height:auto;display:block;border-radius:12px;aspect-ratio:300/285}
+.gallery figcaption{margin-top:8px;color:var(--ink-2);font-size:14px}
+.fgroup{padding-block:22px;border-bottom:1px solid var(--line-2)}
+.fgroup:first-child{padding-top:0}
+.fgroup:last-child{border-bottom:0}
+.fgroup h3{font-size:18px;margin-bottom:14px}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.check{display:flex;align-items:center;gap:12px;cursor:pointer}
+.check input{width:22px;height:22px;accent-color:var(--ink)}
+.switchrow{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:8px 0}
+.switchrow small{display:block;color:var(--ink-2);font-size:14px}
+.sw{position:relative;width:48px;height:32px;flex:none}
+.sw input{position:absolute;opacity:0;inset:0;cursor:pointer;margin:0}
+.sw span{position:absolute;inset:0;border-radius:16px;background:#DDDDDD;transition:background .2s;pointer-events:none}
+.sw span::after{content:"";position:absolute;top:2px;left:2px;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s var(--ease)}
+.sw input:checked + span{background:var(--ink)}
+.sw input:checked + span::after{transform:translateX(16px)}
+.sw input:focus-visible + span{outline:2px solid var(--ink);outline-offset:2px}
+
+/* alerts */
+.pagehead{padding-block:32px 8px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.pagehead h1{font-size:30px}
+.pagehead p{color:var(--ink-2);margin-top:4px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.fchip{height:36px;padding:0 16px;border:1px solid var(--line);border-radius:18px;font-size:14px;font-weight:500;transition:border-color .2s,background .2s}
+.fchip:hover{border-color:var(--ink)}
+.fchip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.alayout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:48px;padding-block:20px 64px}
+.alist{display:grid}
+.arow{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:16px;align-items:center;padding:16px;border-radius:12px;cursor:pointer;transition:background .2s;border-bottom:1px solid var(--line-2)}
+.arow:hover{background:var(--surface)}
+.arow.sel{background:var(--surface);border-color:transparent}
+.arow.new{animation:slidein .3s var(--ease)}
+@keyframes slidein{from{opacity:0;transform:translateX(12px)}}
+.arow .th{width:72px;height:72px;border-radius:10px;overflow:hidden}
+.arow .th > svg{width:100%;height:100%;display:block}
+.arow .msg{font-weight:600}
+.arow .sub{color:var(--ink-2);font-size:14px;margin-top:2px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.arow .sub span{display:inline-flex;align-items:center;gap:5px}
+.arow .side{display:grid;justify-items:end;gap:8px;text-align:right}
+.arow .loss{font-weight:600}
+.arow .loss.bad{color:var(--bad)}
+.arow .btns{display:flex;gap:6px}
+.phone{position:sticky;top:calc(var(--hdr) + 24px);width:300px;max-width:100%;height:600px;border-radius:44px;border:10px solid #1F2124;background:#E9EDF0;overflow:hidden;display:flex;flex-direction:column;justify-self:center;box-shadow:var(--shadow)}
+.phone .pbar{background:#fff;padding:22px 14px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #DADFE3}
+.phone .pbar .av{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;flex:none}
+.phone .pbar b{display:block;font-size:14px}
+.phone .pbar small{color:var(--ink-2);font-size:12px}
+.phone .chat{flex:1;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:8px}
+.bubble{background:#fff;border-radius:4px 14px 14px 14px;padding:9px 11px 6px;font-size:13px;line-height:1.4;max-width:92%;box-shadow:0 1px 1px rgba(0,0,0,.06);animation:up .25s var(--ease)}
+.bubble.me{align-self:flex-end;background:#DCF2E6;border-radius:14px 4px 14px 14px}
+.bubble b{font-weight:600}
+.bubble time{display:block;text-align:right;font-size:10px;color:var(--ink-3);margin-top:2px}
+.bubble .kb{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px}
+.bubble .kb button{background:var(--surface);border-radius:8px;padding:7px 4px;font-size:12px;font-weight:600;color:var(--accent)}
+.bubble .kb button:hover{background:var(--accent-soft)}
+.daytag{align-self:center;font-size:11px;background:rgba(255,255,255,.7);border-radius:10px;padding:2px 10px;color:var(--ink-2)}
+.phonecap{text-align:center;color:var(--ink-2);font-size:13px;margin-top:12px}
+
+/* insights */
+.tabs{display:flex;gap:28px;border-bottom:1px solid var(--line-2);margin-top:16px}
+.tab{padding:12px 0;font-weight:600;color:var(--ink-2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .2s,border-color .2s}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);border-color:var(--ink)}
+.bigs{display:flex;flex-wrap:wrap;gap:20px 48px;padding-block:28px}
+.big{display:grid;gap:2px}
+.big b{font-size:32px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.big b.bad{color:var(--bad)}
+.big span{color:var(--ink-2);font-size:14px}
+.bigs .vr{width:1px;background:var(--line-2)}
+.panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;padding-bottom:64px}
+.panel{border:1px solid var(--line-2);border-radius:12px;padding:24px;min-width:0}
+.panel.full{grid-column:1/-1}
+.panel h3{font-size:17px}
+.panel .take{color:var(--ink-2);margin:4px 0 18px;max-width:70ch}
+.notice{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start;padding:14px 0;border-bottom:1px solid var(--line-2)}
+.notice:last-child{border-bottom:0}
+.notice .ic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--warn-soft);color:var(--warn)}
+.notice .ic.bad{background:var(--bad-soft);color:var(--bad)}
+.notice small{color:var(--ink-2);font-size:13px;white-space:nowrap}
+.rank{display:grid;grid-template-columns:minmax(0,1fr) 120px 70px;gap:12px;align-items:center;padding:10px 0;font-size:14px}
+.rank .bar{height:8px;border-radius:4px;background:var(--surface);overflow:hidden}
+.rank .bar i{display:block;height:100%;background:var(--bad);border-radius:4px;transition:width .4s var(--ease)}
+.rank b{font-weight:600;text-align:right}
+.rank .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* planner */
+.planner{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:clamp(32px,6vw,96px);padding-block:12px 64px}
+.ctrl{padding-block:26px;border-bottom:1px solid var(--line-2)}
+.ctrl:last-child{border-bottom:0}
+.ctrl .lab{display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+.ctrl .lab b{font-size:17px;font-weight:600}
+.ctrl .lab output{font-size:17px;font-weight:600}
+.ctrl p{color:var(--ink-2);margin:4px 0 14px;max-width:60ch}
+input[type=range]{width:100%;accent-color:var(--accent);height:24px}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-2)}
+.assume{margin-top:28px;background:var(--surface);border-radius:12px;padding:20px 22px;font-size:14px;color:var(--ink-2)}
+.assume b{color:var(--ink)}
+.assume ul{margin:8px 0 0;padding-left:18px;display:grid;gap:4px}
+.est .hero{font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.est .lines{display:grid;margin-top:18px;border-top:1px solid var(--line-2)}
+.est .lines div{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-2)}
+.est .lines span{color:var(--ink-2)}
+.est .lines b{font-weight:600}
+.bb{margin-top:20px;display:grid;gap:10px;font-size:13px}
+.bb .r{display:grid;grid-template-columns:52px 1fr 76px;align-items:center;gap:10px}
+.bb .r div{height:14px;background:var(--surface);border-radius:4px;overflow:hidden}
+.bb .r i{display:block;height:100%;border-radius:4px;transition:width .35s var(--ease)}
+.bb .r b{text-align:right;font-weight:600}
+
+/* hostels */
+.lb{display:grid;padding-bottom:16px}
+.lrow{display:grid;grid-template-columns:36px 96px minmax(0,1fr) minmax(120px,220px) 96px 96px;gap:18px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line-2);background:var(--bg);position:relative}
+.lrow .rk{font-size:20px;font-weight:600;color:var(--ink-2);text-align:center}
+.lrow .th{width:96px;height:66px;border-radius:10px;overflow:hidden}
+.lrow .th > svg{width:100%;height:100%;display:block}
+.lrow h3{font-size:17px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lrow .sub{color:var(--ink-2);font-size:14px}
+.lrow .pbar{height:8px;background:var(--surface);border-radius:4px;overflow:hidden;margin-top:6px}
+.lrow .pbar i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .5s var(--ease)}
+.lrow .pct{font-weight:600}
+.lrow .tr{font-weight:600;font-size:14px;display:flex;align-items:center;gap:4px;justify-content:flex-end}
+.lrow .tr.up{color:var(--ok)}.lrow .tr.down{color:var(--bad)}
+.lrow .kwh{text-align:right;font-size:14px}
+.lrow .kwh b{display:block;font-weight:600;font-size:15px}
+.medal{font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent)}
+.lhead{display:grid;grid-template-columns:36px 96px minmax(0,1fr) minmax(120px,220px) 96px 96px;gap:18px;font-size:12px;color:var(--ink-2);font-weight:600;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.lhead span:nth-last-child(-n+2){text-align:right}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px 48px;padding-block:24px 64px}
+.rules h3{font-size:16px;margin-bottom:4px}
+.rules p{color:var(--ink-2);font-size:14px}
+
+/* footer, tabbar, toast, demo */
+footer.site{background:var(--surface);border-top:1px solid var(--line-2);margin-top:24px}
+.fcols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;padding-block:44px 28px}
+.fcols h4{margin:0 0 12px;font-size:14px;font-weight:600}
+.fcols a{display:block;font-size:14px;color:var(--ink);text-decoration:none;padding:4px 0}
+.fcols a:hover{text-decoration:underline}
+.fbase{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px 24px;border-top:1px solid var(--line);padding-block:20px 28px;font-size:14px;color:var(--ink-2)}
+.fbase b{color:var(--ink);font-weight:600}
+.tabbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--bg);border-top:1px solid var(--line-2);padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));justify-content:space-around}
+.tabbar a{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:500;color:var(--ink-2);text-decoration:none;padding:4px 6px;position:relative;min-width:56px}
+.tabbar a.on{color:var(--accent);font-weight:600}
+.tabbar .badge{position:absolute;top:0;right:12px;min-width:16px;height:16px;border-radius:8px;background:var(--bad);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+.toasts{position:fixed;top:calc(var(--hdr) + 12px);right:16px;z-index:80;display:grid;gap:10px;width:min(360px,calc(100vw - 32px))}
+.toast{background:var(--bg);border-radius:16px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:14px 16px;display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:start;animation:tin .3s var(--ease)}
+.toast.out{animation:tout .25s var(--ease) forwards}
+@keyframes tin{from{opacity:0;transform:translateX(16px)}}
+@keyframes tout{to{opacity:0;transform:translateX(16px)}}
+.toast .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--accent);color:#fff}
+.toast .ic.bad{background:var(--bad)}
+.toast small{color:var(--ink-2);font-size:12px;display:block}
+.toast b{font-weight:600;font-size:14px;display:block;line-height:1.35}
+.toast .acts{display:flex;gap:12px;margin-top:8px}
+.toast .acts button{font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.demobtn{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:58;background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--ink-2);box-shadow:var(--shadow-sm);display:flex;gap:6px;align-items:center}
+.demobtn kbd{font:600 11px var(--font);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.demo{position:fixed;left:16px;bottom:calc(60px + env(safe-area-inset-bottom,0px));z-index:85;width:min(340px,calc(100vw - 32px));background:var(--bg);border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.22);padding:18px;animation:up .2s var(--ease);max-height:calc(100vh - 140px);overflow:auto}
+.demo h3{font-size:15px;display:flex;justify-content:space-between;align-items:center}
+.demo h4{margin:14px 0 8px;font-size:12px;color:var(--ink-2);font-weight:600}
+.demo .sb{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.demo .sb button{flex:1;padding:8px;font-weight:600;font-size:13px}
+.demo .sb button.on{background:var(--ink);color:#fff}
+.demo .sc{display:grid;gap:6px}
+.demo .sc button{text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-weight:500;transition:border-color .2s,background .2s}
+.demo .sc button:hover{border-color:var(--ink);background:var(--surface)}
+.demo .sc button small{display:block;color:var(--ink-2);font-size:12px}
+.demo select{border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--bg)}
+
+/* editing */
+.right{position:relative}
+.sumrow{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px 24px;padding-block:20px 2px}
+.sumrow .summary{padding-block:0}
+.sumacts{display:flex;gap:8px;flex-wrap:wrap}
+.sumacts .btn{gap:6px}
+.form{display:grid;gap:18px}
+.field{display:grid;gap:6px;min-width:0;align-content:start}
+.field > span{font-size:13px;font-weight:600}
+.field small{color:var(--ink-2);font-size:12.5px}
+.field input,.field select{height:46px;border:1px solid var(--line);border-radius:8px;padding:0 12px;background:var(--bg);font-size:15px;width:100%;min-width:0;transition:border-color .2s}
+.field input:focus,.field select:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.field.bad input{border-color:var(--bad)}
+.cols2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.cols4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.err{color:var(--bad);font-size:13px;font-weight:500}
+.formnote{background:var(--surface);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--ink-2)}
+.mgroup h3{font-size:13px;font-weight:600;color:var(--ink-2);margin:20px 0 4px;display:flex;justify-content:space-between}
+.mgroup:first-child h3{margin-top:0}
+.mrow{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.mrow .th{width:64px;height:60px;border-radius:8px;overflow:hidden}
+.mrow .th > svg{width:100%;height:100%;display:block}
+.mrow b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow small{color:var(--ink-2);font-size:13px}
+.mrow .btns{display:flex;gap:6px}
+.mempty{padding:32px 0;text-align:center;color:var(--ink-2)}
+.menuhead{padding:10px 14px 12px;border-bottom:1px solid var(--line-2);margin-bottom:6px}
+.menuhead b{display:block;font-weight:600}
+@media (max-width:744px){ .cols4{grid-template-columns:repeat(2,minmax(0,1fr))} .mrow{grid-template-columns:48px minmax(0,1fr)} .mrow .th{width:48px;height:46px} .mrow .btns{grid-column:2} }
+
+/* art animation */
+.spin{transform-box:fill-box;transform-origin:center;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.air path{animation:air 1.8s ease-in-out infinite}
+.air path:nth-child(2){animation-delay:.3s}.air path:nth-child(3){animation-delay:.6s}
+@keyframes air{0%{opacity:0;transform:translateY(-2px)}45%{opacity:.85}100%{opacity:0;transform:translateY(7px)}}
+.blink{animation:blink 1.4s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+
+/* skeleton */
+.skel{background:linear-gradient(90deg,var(--surface) 0,#EFEFEF 40%,var(--surface) 80%);background-size:200% 100%;animation:shim 1.2s linear infinite;border-radius:12px}
+@keyframes shim{to{background-position:-200% 0}}
+
+@media (max-width:1280px){ .nav a{padding:10px 10px} .clock .sp{display:none} }
+@media (max-width:1128px){
+  :root{--gut:40px}
+  .explore{grid-template-columns:1fr}
+  .mapcol{display:none}
+  .show-map .mapcol{display:block;position:fixed;inset:calc(var(--hdr)) 0 0 0;z-index:50;background:var(--bg);padding:12px}
+  .show-map .mapwrap{position:relative;top:0;height:calc(100% - 70px)}
+  .maptoggle{display:flex}
+  .nav{display:none}
+  .tabbar{display:flex}
+  body{padding-bottom:72px}
+  .demobtn{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  .demo{bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+  .rbody,.alayout,.planner{grid-template-columns:1fr}
+  .stick{position:static;padding-top:0}
+  .phone{position:relative;top:0}
+  .panels{grid-template-columns:1fr}
+  .row1{grid-template-columns:auto 1fr}
+}
+@media (max-width:744px){
+  :root{--gut:24px}
+  .row1{height:64px}
+  .clock{display:none}
+  .avatar{padding:5px}
+  .avatar svg{display:none}
+  .search{height:52px}
+  .seg{padding:0 18px}
+  .seg.hide-m{display:none}
+  .seg + .seg::before{display:none}
+  .photos{grid-template-columns:1fr;grid-template-rows:1fr}
+  .photos > div:not(:first-child){display:none}
+  .photos > div:first-child{grid-row:auto}
+  .rhead h1{font-size:22px}
+  .fcols{grid-template-columns:1fr 1fr}
+  .lrow,.lhead{grid-template-columns:28px 64px minmax(0,1fr) 72px;gap:12px}
+  .lrow .th{width:64px;height:48px}
+  .lrow > :nth-child(4),.lhead > :nth-child(4),.lrow > :nth-child(6),.lhead > :nth-child(6){display:none}
+  .arow{grid-template-columns:56px minmax(0,1fr)}
+  .arow .th{width:56px;height:56px}
+  .arow .side{grid-column:1/-1;justify-items:start;grid-template-columns:auto auto;align-items:center;justify-content:space-between;text-align:left}
+  .bigs .vr{display:none}
+  .big b{font-size:26px}
+  .panel{padding:18px}
+  .catrow{gap:26px}
+  .summary .sep{display:none}
+  .demobtn{left:auto;right:16px;padding:9px}
+  .demobtn .lbl,.demobtn kbd{display:none}
+  .demo{left:auto;right:16px}
+}
+@media (max-width:420px){ :root{--gut:16px} .filterbtn span.t{display:none} }
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important} }
+</style>
+</head>
+<body>
+<header class="top" id="top">
+  <div class="wrap">
+    <div class="row1">
+      <a class="logo" href="#explore" aria-label="WattWatch home">
+        <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="9" fill="currentColor"/><path d="M17.5 6 10 18h5.2l-1.6 8L22 14h-5.4z" fill="#fff"/></svg>
+        <span id="logoName">WattWatch</span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a href="#explore" data-v="explore"><span data-i="grid"></span>Explore</a>
+        <a href="#alerts" data-v="alerts"><span data-i="bell"></span>Alerts <span class="badge" id="navBadge">0</span></a>
+        <a href="#insights" data-v="insights"><span data-i="chart"></span>Insights</a>
+        <a href="#planner" data-v="planner"><span data-i="sliders"></span>Planner</a>
+        <a href="#hostels" data-v="hostels"><span data-i="trophy"></span>Hostels</a>
+      </nav>
+      <div class="right">
+        <div class="clock tnum" title="Simulated campus clock"><i class="live"></i><span id="clock">Tue 1:44 PM</span><span class="sp" id="speedTag"></span></div>
+        <button class="iconbtn" id="bell" aria-label="Open alerts"><span data-i="bell"></span><span class="dot" id="bellDot">0</span></button>
+        <button class="avatar" id="avatarBtn" aria-label="Facilities office account"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>FO</span></button>
+      </div>
+    </div>
+    <div class="searchrow" id="searchrow">
+      <div class="search" id="search">
+        <button class="seg hide-m" data-pop="bld"><b>Building</b><span id="segBld">Any building</span></button>
+        <label class="seg"><b>Room</b><input id="q" type="search" placeholder="Search by name or code" autocomplete="off"></label>
+        <button class="seg hide-m" data-pop="st"><b>Status</b><span id="segSt">Any status</span></button>
+        <button class="searchbtn" id="goSearch" aria-label="Search rooms"><span data-i="search"></span></button>
+      </div>
+    </div>
+    <div class="cats" id="cats">
+      <div class="catscroll atstart" id="catscroll">
+        <button class="catarrow l" aria-label="Scroll categories left"><span data-i="left" data-s="14"></span></button>
+        <div class="catrow" id="catrow"></div>
+        <button class="catarrow r" aria-label="Scroll categories right"><span data-i="right" data-s="14"></span></button>
+      </div>
+      <button class="filterbtn" id="filterBtn"><span data-i="filter" data-s="16"></span><span class="t">Filters</span></button>
+    </div>
+  </div>
+</header>
+
+<main id="app">
+  <section id="v-explore" class="wrap">
+    <div class="sumrow"><div class="summary" id="summary"></div><div class="sumacts" data-edit><button class="btn btn-line btn-sm" id="sumAdd"><span data-i="plus" data-s="16"></span>Add a room</button><button class="btn btn-line btn-sm" id="sumManage"><span data-i="list" data-s="16"></span>Manage rooms</button></div></div>
+    <div class="explore" id="exploreGrid">
+      <div class="grid" id="grid"></div>
+      <div class="mapcol"><div class="mapwrap" id="mapwrap"></div></div>
+    </div>
+  </section>
+  <section id="v-room" class="wrap" hidden></section>
+  <section id="v-alerts" class="wrap" hidden></section>
+  <section id="v-insights" class="wrap" hidden></section>
+  <section id="v-planner" class="wrap" hidden></section>
+  <section id="v-hostels" class="wrap" hidden></section>
+</main>
+
+<button class="maptoggle" id="mapToggle"><span id="mapToggleTxt">Show map</span><span data-i="map" data-s="16" id="mapToggleIc"></span></button>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="fcols">
+      <div><h4 id="footName">WattWatch</h4><a href="#explore">How it works</a><a href="#planner">Cost and payback</a><a href="#hostels">Hostel challenge</a></div>
+      <div><h4>For in-charges</h4><a href="#alerts">Alert settings</a><a href="#alerts">Telegram bot setup</a><a href="#insights">Monthly report</a></div>
+      <div><h4>Hardware</h4><a href="#planner">Sensor node (about ₹800 a room)</a><a href="#planner">Relay wiring guide</a><a href="#explore">Node status</a></div>
+      <div><h4>Privacy</h4><a href="#explore">What we collect</a><a href="#explore">Data retention</a><a href="#explore">Contact facilities office</a></div>
+    </div>
+    <div class="fbase"><span><b>Presence sensors only. No cameras.</b> PIR sensors report whether a room is occupied, never who is in it.</span><span>Built by <b id="builtBy">Facilities office</b> · Tariff ₹9/kWh · Grid factor 0.72 kg CO₂/kWh · Simulated readings</span></div>
+  </div>
+</footer>
+
+<nav class="tabbar" aria-label="Main">
+  <a href="#explore" data-v="explore"><span data-i="grid" data-s="22"></span>Explore</a>
+  <a href="#alerts" data-v="alerts"><span data-i="bell" data-s="22"></span>Alerts<span class="badge" id="tabBadge">0</span></a>
+  <a href="#insights" data-v="insights"><span data-i="chart" data-s="22"></span>Insights</a>
+  <a href="#planner" data-v="planner"><span data-i="sliders" data-s="22"></span>Planner</a>
+  <a href="#hostels" data-v="hostels"><span data-i="trophy" data-s="22"></span>Hostels</a>
+</nav>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<button class="demobtn" id="demoBtn" aria-label="Presenter controls"><span data-i="sliders" data-s="14"></span><span class="lbl">Presenter controls</span> <kbd>D</kbd></button>
+<div id="demo" class="demo" hidden></div>
+<div id="modalRoot"></div>
+
+<script>
+/* ============ utilities ============ */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function hashStr(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+const R=rng(20261013);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const inr=(n,d=0)=>'₹'+Number(n).toLocaleString('en-IN',{maximumFractionDigits:d,minimumFractionDigits:d});
+const num=(n,d=0)=>Number(n).toLocaleString('en-IN',{maximumFractionDigits:d,minimumFractionDigits:d});
+const short=v=>v>=1e5?'₹'+(v/1e5).toFixed(v>=1e6?1:2).replace(/\.?0+$/,'')+'L':v>=1000?'₹'+Math.round(v/1000)+'k':'₹'+Math.round(v);
+function setHTML(el,h){if(el&&el._h!==h){el.innerHTML=h;el._h=h}}
+function fmtDur(ms){const m=Math.max(0,Math.round(ms/60000));const h=Math.floor(m/60);return h?`${h}h ${String(m%60).padStart(2,'0')}m`:`${m}m`}
+function fmtTime(ms){const d=new Date(ms);let h=d.getHours(),m=d.getMinutes();const ap=h>=12?'PM':'AM';h=h%12||12;return `${h}:${String(m).padStart(2,'0')} ${ap}`}
+function fmtH(hf){let h=Math.floor(hf),m=Math.round((hf-h)*60);if(m===60){h++;m=0}const ap=h>=12&&h<24?'PM':'AM';const hh=h%12||12;return `${hh}:${String(m).padStart(2,'0')}${m===0&&false?'':''} ${ap}`}
+const hourOf=t=>{const d=new Date(t);return d.getHours()+d.getMinutes()/60+d.getSeconds()/3600};
+const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+/* icons: one stroke weight everywhere */
+const IP={
+grid:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+bolt:'M13 2 4 14h7l-1 8 9-12h-7z',
+users:'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.15a3.5 3.5 0 0 1 0 6.7',
+board:'M3 4h18v12H3zM8 20h8M12 16v4M7 8h6M7 11h4',
+flask:'M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3M7 15h10',
+present:'M3 4h18M5 4v10h14V4M12 14v4M8 21l4-3 4 3',
+book:'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5',
+bed:'M3 19V6M3 14h18v5M21 19v-5a3 3 0 0 0-3-3h-7v3M7.5 12a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6z',
+brief:'M4 8h16v11H4zM9 8V5h6v3M4 13h16',
+snow:'M12 2v20M4.9 7l14.2 10M19.1 7 4.9 17M9.5 4 12 6.5 14.5 4M9.5 20 12 17.5 14.5 20',
+bell:'M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21a2 2 0 0 0 4 0',
+chart:'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3',
+sliders:'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
+trophy:'M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8M9.5 17h5',
+search:'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
+bookmark:'M7 3.5h10v17l-5-4-5 4z',
+left:'M15 18l-6-6 6-6',right:'M9 6l6 6-6 6',
+bulb:'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z',
+fan:'M12 13.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM12 10.5C11 6 12.5 3 15 3.5s1.5 4.5-1.5 7.5M13.4 12.6c4 2 5.5 5 3.5 6.5s-4.5-1.5-5-5.5M10.6 12.4c-4 1.6-7.2.6-7.1-1.9s4-2.7 7.4-.9',
+monitor:'M3 5h18v11H3zM9 20h6M12 16v4',
+plug:'M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5',
+clock:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+share:'M12 3v12M7 8l5-5 5 5M5 13v7h14v-7',
+x:'M6 6l12 12M18 6 6 18',
+check:'M5 12.5l4.5 4.5L19 7',
+filter:'M4 6h16M7 12h10M10 18h4',
+send:'M21 3 3 10.5l7 2.5 2.5 7zM10 13 21 3',
+map:'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14',
+list:'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
+up:'M12 19V5M6 11l6-6 6 6',down:'M12 5v14M6 13l6 6 6-6',
+power:'M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0',
+photos:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+alert:'M12 3 2 20h20zM12 10v4M12 17h.01',
+plus:'M12 5v14M5 12h14',
+edit:'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
+trash:'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6',
+pin:'M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+};
+function ic(n,s=20,w=1.7){return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IP[n]}"/></svg>`}
+function paintIcons(root=document){$$('[data-i]',root).forEach(e=>{if(!e.firstChild)e.innerHTML=ic(e.dataset.i,+(e.dataset.s||20))})}
+
+/* ============ campus data ============ */
+const TARIFF=9, CO2=0.72;
+const BUILDINGS=[
+ {id:'D',name:'Admin Block',short:'Admin',x:252,y:44,w:150,h:68,inc:{name:'Ms. Deepa Kulkarni',role:'Administrative officer',resp:'9 min',col:'#6B5B73',tg:'@deepa_admin'}},
+ {id:'Y',name:'Central Library',short:'Library',x:44,y:160,w:180,h:112,inc:{name:'Ms. Anitha Shenoy',role:'Chief librarian',resp:'14 min',col:'#7A6248',tg:'@anitha_lib'}},
+ {id:'A',name:'Academic Block A',short:'Block A',x:330,y:166,w:216,h:100,inc:{name:'Prof. Suresh Hegde',role:'Building in-charge, Block A',resp:'18 min',col:'#45607A',tg:'@hegde_blockA'}},
+ {id:'B',name:'Academic Block B',short:'Block B',x:330,y:314,w:216,h:100,inc:{name:'Dr. Kavitha Rao',role:'Building in-charge, Block B',resp:'12 min',col:'#3E6B5A',tg:'@kavitha_blockB'}},
+ {id:'L',name:'Lab Complex',short:'Labs',x:44,y:330,w:180,h:144,inc:{name:'Mr. Ramesh Gowda',role:'Lab superintendent',resp:'7 min',col:'#8A5A44',tg:'@ramesh_labs'}},
+ {id:'H',name:'Kaveri Hostel',short:'Kaveri Hostel',x:80,y:574,w:250,h:84,inc:{name:'Mr. Prakash Naik',role:'Warden, Kaveri Hostel',resp:'21 min',col:'#556B3E',tg:'@warden_kaveri'}},
+];
+const BY=Object.fromEntries(BUILDINGS.map(b=>[b.id,b]));
+const DEFAULT_ROOMS=[
+ {id:'A-101',name:'Room 101',b:'A',type:'class',floor:1,seats:60,lights:8,fans:6,ac:0,equip:.25,slots:[[9,10],[10,11],[14,15],[15,16]]},
+ {id:'A-108',name:'Room 108',b:'A',type:'class',floor:1,seats:72,lights:10,fans:4,ac:2,equip:.25,slots:[[9,10],[11.25,12.25],[14,15]]},
+ {id:'A-204',name:'Seminar Hall 1',b:'A',type:'seminar',floor:2,seats:120,lights:16,fans:0,ac:4,equip:.6,slots:[[10,12],[15,16.5]]},
+ {id:'A-310',name:'Room 310',b:'A',type:'class',floor:3,seats:48,lights:6,fans:4,ac:0,equip:.25,slots:[[9,10],[11.25,12.25],[16,17]]},
+ {id:'B-204',name:'Room 204',b:'B',type:'class',floor:2,seats:60,lights:10,fans:6,ac:2,equip:.25,slots:[[9,10],[10.6667,11.6667],[15,16]]},
+ {id:'B-205',name:'Room 205',b:'B',type:'class',floor:2,seats:60,lights:10,fans:6,ac:0,equip:.25,slots:[[9,10],[10,11],[14,15],[16,17]]},
+ {id:'B-302',name:'Drawing Hall',b:'B',type:'class',floor:3,seats:80,lights:14,fans:8,ac:0,equip:0,slots:[[14,17]]},
+ {id:'B-G05',name:'Tutorial Room G05',b:'B',type:'class',floor:0,seats:30,lights:4,fans:2,ac:0,equip:.25,slots:[[12.25,13.25],[14,15]]},
+ {id:'L-1',name:'Electronics Lab 1',b:'L',type:'lab',floor:0,seats:36,lights:12,fans:4,ac:2,equip:2.2,slots:[[9,12]]},
+ {id:'L-3',name:'Computer Lab 3',b:'L',type:'lab',floor:1,seats:40,lights:12,fans:0,ac:3,equip:4.8,slots:[[9,11],[14.5,17]]},
+ {id:'L-5',name:'Thermal Lab 5',b:'L',type:'lab',floor:1,seats:30,lights:10,fans:6,ac:0,equip:3.0,slots:[[9,12.5]]},
+ {id:'L-6',name:'Robotics Lab',b:'L',type:'lab',floor:2,seats:24,lights:8,fans:2,ac:2,equip:1.4,slots:[[14,17]]},
+ {id:'Y-RH',name:'Reading Hall',b:'Y',type:'library',floor:0,seats:150,lights:24,fans:12,ac:0,equip:.2},
+ {id:'Y-DL',name:'Digital Library',b:'Y',type:'library',floor:1,seats:50,lights:10,fans:0,ac:3,equip:2.0},
+ {id:'Y-PS',name:'Periodicals Section',b:'Y',type:'library',floor:1,seats:40,lights:8,fans:4,ac:0,equip:0},
+ {id:'H-CR',name:'Common Room',b:'H',type:'hostel',floor:0,seats:60,lights:10,fans:6,ac:0,equip:.55},
+ {id:'H-SR',name:'Study Room',b:'H',type:'hostel',floor:1,seats:40,lights:10,fans:6,ac:0,equip:0},
+ {id:'D-EX',name:'Exam Cell',b:'D',type:'office',floor:1,seats:8,lights:6,fans:2,ac:1,equip:.8},
+ {id:'D-AC',name:'Accounts Office',b:'D',type:'office',floor:0,seats:10,lights:6,fans:3,ac:1,equip:.7},
+ {id:'D-BR',name:'Board Room',b:'D',type:'office',floor:1,seats:20,lights:8,fans:0,ac:2,equip:.4,slots:[[15,16]]},
+];
+function cloneRoom(r){return {...r,slots:r.slots?r.slots.map(s=>[...s]):undefined}}
+const ROOMS=DEFAULT_ROOMS.map(cloneRoom);
+let RM=Object.fromEntries(ROOMS.map(r=>[r.id,r]));
+const TYPE_LABEL={class:'Classroom',seminar:'Seminar hall',lab:'Laboratory',library:'Library space',hostel:'Hostel room',office:'Office'};
+const EQUIP_LABEL={class:'Projector',seminar:'Projector and sound',lab:'Lab equipment',library:'Computers',hostel:'TV and water cooler',office:'Computers and printer'};
+const FLOOR=f=>f===0?'Ground floor':`Floor ${f}`;
+
+/* ============ simulator ============ */
+const DAY0=new Date(2026,9,13).getTime();
+let dayStart=DAY0;
+const START=new Date(2026,9,13,13,44,0).getTime();
+let simNow=START, speed=1, autoOff=false, autoMin=20, savedRs=0;
+
+function temp(h){return 23+5.5*Math.sin((h-9)/24*2*Math.PI)}
+function acFactor(h){return clamp(.55+.45*(temp(h)-21)/8,.45,1)}
+function inSlot(r,h){return !!r.slots&&r.slots.some(([a,b])=>h>=a&&h<b)}
+function pOcc(r,h){
+ if(r.slots) return inSlot(r,h)?1:0;
+ if(r.type==='library'){if(h<8||h>=20)return 0;return {'Y-RH':.95,'Y-DL':.8,'Y-PS':.55}[r.id]}
+ if(r.type==='hostel'){
+  if(r.id==='H-CR') return (h>=7&&h<9)?.6:(h>=13&&h<14)?.5:(h>=18&&h<23)?.9:.04;
+  return (h>=6&&h<8)?.5:(h>=20)?.9:(h<1)?.6:.03;
+ }
+ if(r.type==='office') return (h>=9.5&&h<13)?.95:(h>=13&&h<14)?.4:(h>=14&&h<17.5)?.95:0;
+ return 0;
+}
+function loadRaw(r,f,h){let k=.012;if(f.L)k+=r.lights*.02;if(f.F)k+=r.fans*.07;if(f.A)k+=r.ac*1.6*acFactor(h);if(f.E)k+=r.equip;return k}
+const FULL=r=>({L:r.lights>0,F:r.fans>0,A:r.ac>0,E:r.equip>0});
+function fullOn(r,s){Object.assign(s,FULL(r))}
+function allOff(s){s.L=s.F=s.A=s.E=false}
+function anyOn(s){return s.L||s.F||s.A||s.E}
+function loadOf(r,s,h){return s.cut?.012:loadRaw(r,s,h)}
+
+const S={};
+function initRoom(r){
+ const s=blankState();
+ const nowI=Math.floor(hourOf(START)*12);let o=false;
+ for(let i=0;i<nowI;i++){const h=i/12+1/24;const p=pOcc(r,h);if(r.slots)o=p>.5;else if(R()<.3)o=R()<p;s.occLog[i]=o?1:0}
+ s.occ=r.slots?inSlot(r,hourOf(START)):!!s.occLog[nowI-1];
+ let last=-1;for(let i=nowI-1;i>=0;i--)if(s.occLog[i]){last=i;break}
+ s.lastMotion=last>=0?DAY0+(last+1)*300000:null;
+ if(s.occ){fullOn(r,s);s.lastMotion=START}else s.emptySince=s.lastMotion||DAY0+7*3600000;
+ return s;
+}
+function blankState(){return {occ:false,L:false,F:false,A:false,E:false,cut:false,emptySince:null,lastMotion:null,kw:0,hist:[],hourly:Array(24).fill(0),occLog:Array(288).fill(null),alerted:false,spikeUntil:0,forceEmptyUntil:0,pinned:false,savedKw:0,watched:false,cutAt:null}}
+function freshState(r){const s=blankState(),h=hourOf(simNow);s.occ=r.slots?inSlot(r,h):Math.random()<pOcc(r,h);if(s.occ){fullOn(r,s);s.lastMotion=simNow}else s.emptySince=simNow;s.kw=loadOf(r,s,h);for(let i=0;i<60;i++)s.hist.push(s.kw);return s}
+ROOMS.forEach(r=>S[r.id]=initRoom(r));
+// waste already happening when the demo opens
+function seedWaste(id,flags,since){const s=S[id],r=RM[id];s.occ=false;allOff(s);Object.assign(s,flags);s.pinned=true;if(since){s.emptySince=since;s.lastMotion=since;const a=Math.floor(hourOf(since)*12),b=Math.floor(hourOf(START)*12);for(let i=a;i<b;i++)s.occLog[i]=0}}
+seedWaste('B-204',{A:true,L:true});
+seedWaste('A-310',{L:true,F:true});
+seedWaste('L-5',{E:true,L:true});
+seedWaste('H-SR',{L:true,F:true},DAY0+(8*60+10)*60000);
+ROOMS.forEach(r=>{const s=S[r.id];const nowI=Math.floor(hourOf(START)*12);
+ for(let i=0;i<nowI;i++){const h=i/12,t=DAY0+i*300000;let kw;
+  if(s.occLog[i])kw=loadRaw(r,FULL(r),h);else if(s.emptySince&&t>=s.emptySince&&anyOn(s))kw=loadRaw(r,s,h);else kw=.012;
+  s.hourly[Math.floor(h)]+=kw/12}
+ s.kw=loadOf(r,s,hourOf(START));
+ for(let i=0;i<60;i++)s.hist.push(s.kw*(1+(R()-.5)*.05));
+});
+const isWaste=s=>!s.occ&&!s.cut&&s.kw>.08&&s.emptySince!=null&&simNow-s.emptySince>=10*60000;
+function onList(r,s){const p=[];
+ if(s.A&&r.ac)p.push(r.ac>1?`${r.ac} ACs`:'AC');
+ if(s.E&&r.equip>.3)p.push(r.type==='lab'?(r.id==='L-3'?'40 PCs':'lab equipment'):r.type==='office'?'PCs':r.type==='hostel'?'TV and water cooler':r.type==='library'?'PCs':'projector');
+ if(s.L&&r.lights)p.push('lights');
+ if(s.F&&r.fans)p.push('fans');
+ if(s.E&&r.equip<=.3&&r.equip>0)p.push('projector');
+ return p}
+const joinList=a=>a.length<=1?(a[0]||'nothing'):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
+function mainOn(r,s){if(s.A&&r.ac)return 'AC on';if(s.E&&r.equip>.3)return r.type==='lab'?'PCs on':'equipment on';if(s.L)return 'lights on';if(s.F)return 'fans on';return 'standby'}
+function status(r,s){
+ if(s.cut)return{label:'Power cut by relay',tone:'off'};
+ if(s.occ){if(s.spikeUntil>simNow)return{label:'AC drawing too much',tone:'warn'};return{label:r.slots?(r.type==='lab'?'Lab session':r.type==='office'?'Meeting on':'In class'):'In use',tone:'ok'}}
+ if(isWaste(s))return{label:'Empty, '+mainOn(r,s),tone:'bad'};
+ if(anyOn(s))return{label:'Just emptied',tone:'warn'};
+ return{label:'Empty, all off',tone:'off'};
+}
+function nextSlot(r,h){if(!r.slots)return null;const n=r.slots.find(([a])=>a>h);return n?n[0]:null}
+function curSlotEnd(r,h){const c=r.slots&&r.slots.find(([a,b])=>h>=a&&h<b);return c?c[1]:null}
+
+/* alerts */
+const ALERTS=[];let alertSeq=1;
+function newAlert(r,kind,o={}){
+ const s=S[r.id];
+ const a={id:alertSeq++,room:r.id,kind,at:o.at||simNow,from:o.from??s.emptySince,status:o.status||'open',items:o.items||joinList(onList(r,s)),rate:o.rate??s.kw*TARIFF,note:o.note||'',resolvedAt:o.resolvedAt||null,channel:o.channel||'Telegram'};
+ ALERTS.unshift(a);return a;
+}
+function resolveRoomAlerts(id,note){ALERTS.forEach(a=>{if(a.room===id&&a.status!=='resolved'&&a.kind!=='auto'){a.status='resolved';a.note=note;a.resolvedAt=simNow;a.lost=lossOf(a)}})}
+function lossOf(a){if(a.lost!=null)return a.lost;if(a.kind==='spike')return a.rate*(Math.max(0,simNow-a.at)/36e5);const s=S[a.room];const rate=a.status==='resolved'?a.rate:s.kw*TARIFF;return rate*(Math.max(0,simNow-a.from)/36e5)}
+function alertText(a){const r=RM[a.room];
+ if(a.kind==='spike')return `${r.name}: AC drawing about 1.8× its usual load`;
+ if(a.kind==='auto')return `${r.name}: relay cut power after ${a.mins} min with no one in the room`;
+ const end=a.status==='resolved'?a.resolvedAt:simNow;
+ return `${r.name}: ${a.items} running ${fmtDur(end-a.from)} with no occupancy`}
+// history: a resolved alert from the morning, then the live ones
+(()=>{const r=RM['L-1'];newAlert(r,'waste',{at:DAY0+(12*60+15)*60000,from:DAY0+12*3600000,status:'resolved',items:'lights and 2 ACs',rate:30,note:'Switched off at the room by Mr. Ramesh Gowda',resolvedAt:DAY0+(12*60+52)*60000,channel:'Telegram'}).lost=26;
+ const r2=RM['Y-PS'];newAlert(r2,'waste',{at:DAY0+(9*60+5)*60000,from:DAY0+(8*60+50)*60000,status:'resolved',items:'lights and fans',rate:4,note:'Library opened at 9:20 AM',resolvedAt:DAY0+(9*60+20)*60000,channel:'Email'}).lost=2;
+ ['H-SR','B-204','A-310','L-5'].forEach(id=>{const s=S[id];if(isWaste(s)&&START-s.emptySince>=15*60000){newAlert(RM[id],'waste',{at:s.emptySince+15*60000});s.alerted=true}});
+ ALERTS.sort((a,b)=>b.at-a.at);})();
+
+/* tick */
+let quiet=false;
+function step(r,s,dt,h){
+ const was=s.occ;
+ if(s.forceEmptyUntil>simNow)s.occ=false;
+ else if(r.slots)s.occ=inSlot(r,h);
+ else{const p=pOcc(r,h),ch=dt/60/20;if(s.occ){if(Math.random()<(1-p)*ch)s.occ=false}else if(Math.random()<p*ch)s.occ=true}
+ if(s.occ){
+  s.lastMotion=simNow;
+  if(!was){
+   const restored=s.cut;s.cut=false;fullOn(r,s);s.pinned=false;s.alerted=false;
+   const why=r.slots?(r.type==='lab'?'Lab session started':'Class started'):'Someone came in';
+   const had=ALERTS.some(a=>a.room===r.id&&a.status!=='resolved'&&a.kind==='waste');
+   resolveRoomAlerts(r.id,`${why} at ${fmtTime(simNow)}`);
+   s.emptySince=null;
+   if(restored&&!quiet)toast({title:`${r.name}: power back on`,sub:`Motion detected at ${fmtTime(simNow)}. Relay closed.`,room:r.id});
+   else if(had&&!quiet&&curView==='alerts')renderAlerts();
+  }
+ }else if(was){
+  s.emptySince=simNow;
+  s.L=r.lights>0&&Math.random()<.45;s.F=r.fans>0&&Math.random()<.4;s.A=r.ac>0&&Math.random()<.35;s.E=r.equip>.3&&Math.random()<.35;
+ }
+ if(!s.occ&&anyOn(s)&&!s.cut&&!s.pinned&&Math.random()<dt/3600*.25){
+  allOff(s);resolveRoomAlerts(r.id,`Switched off at the room at ${fmtTime(simNow)}`);
+ }
+ if(autoOff&&!s.occ&&anyOn(s)&&!s.cut&&s.emptySince&&simNow-s.emptySince>=autoMin*60000){
+  cutPower(r.id,'auto');
+ }
+ let kw=loadOf(r,s,h)*(1+(Math.random()-.5)*.06);
+ if(s.spikeUntil>simNow&&s.A&&!s.cut)kw+=r.ac*1.6*.8*acFactor(h);
+ s.kw=kw;
+ if(s.cut&&!s.occ){savedRs+=s.savedKw*dt/3600*TARIFF}
+ const hi=Math.floor(h);s.hourly[hi]+=kw*dt/3600;
+ const oi=Math.floor(h*12);if(oi<288)s.occLog[oi]=s.occ?1:(s.occLog[oi]===1?1:0);
+ s.hist.push(kw);if(s.hist.length>60)s.hist.shift();
+}
+function checkAlerts(){
+ ROOMS.forEach(r=>{const s=S[r.id];
+  if(isWaste(s)&&!s.alerted&&simNow-s.emptySince>=15*60000){s.alerted=true;const a=newAlert(r,'waste');
+   if(!quiet)toast({title:alertText(a),sub:`Sent to ${BY[r.b].inc.name} on Telegram`,room:r.id,bad:true,alert:a.id})}
+ })}
+function advance(dtSec){
+ const prevDay=new Date(simNow).getDate();
+ simNow+=dtSec*1000;
+ if(new Date(simNow).getDate()!==prevDay){dayStart=new Date(new Date(simNow).toDateString()).getTime();ROOMS.forEach(r=>{S[r.id].hourly=Array(24).fill(0);S[r.id].occLog=Array(288).fill(null)})}
+ const h=hourOf(simNow);
+ ROOMS.forEach(r=>step(r,S[r.id],dtSec,h));
+ checkAlerts();
+}
+function cutPower(id,by){
+ const r=RM[id],s=S[id];if(s.cut)return;
+ const h=hourOf(simNow);s.savedKw=Math.max(0,loadRaw(r,s,h)-.012);s.cut=true;s.cutAt=simNow;s.kw=.012;s.hist.push(.012);if(s.hist.length>60)s.hist.shift();
+ const rate=s.savedKw*TARIFF;
+ if(by==='auto'){
+  resolveRoomAlerts(id,`Relay cut power automatically at ${fmtTime(simNow)}`);
+  const a=newAlert(r,'auto',{status:'resolved',rate,resolvedAt:simNow,note:`Saving ${inr(rate)}/hr`});a.mins=autoMin;a.lost=0;
+  if(!quiet)toast({title:`${r.name}: power cut automatically`,sub:`Empty for ${autoMin} min. Saving ${inr(rate)}/hr.`,room:id});
+ }else{
+  resolveRoomAlerts(id,`Power cut from the dashboard at ${fmtTime(simNow)}`);
+  if(!quiet)toast({title:`${r.name}: power off`,sub:`Relay on node ${id} opened. Saving ${inr(rate)}/hr.`,room:id});
+ }
+ refresh();
+}
+function restorePower(id){const s=S[id];s.cut=false;s.kw=loadOf(RM[id],s,hourOf(simNow));refresh()}
+
+/* ============ illustrations (drawn, so every room shows its live state) ============ */
+const PAL={class:['#E8E3D7','#C4B091','#D5CCB9'],seminar:['#E4DED6','#8B6C57','#CFC5B8'],lab:['#E0E5E6','#B3BABD','#CAD1D3'],library:['#ECE5D5','#AE8964','#D8CDB6'],hostel:['#E2E6DA','#A48B70','#CFD5C5'],office:['#E6E4DE','#9BA3AB','#D2CFC7']};
+const SHIRTS=['#6D8BA6','#B5734F','#7C8B5E','#D3C6A8','#8E6C8A','#4F6A7A','#C9A24B','#A35D5D','#5E7F72'];
+const HAIR=['#2E2620','#3B2E25','#1F1A17','#4A3A2C','#262222'];
+const isDay=h=>h>=6.5&&h<18.2;
+function sky(h){return h>=6.5&&h<17.6?'#CFE2EC':h>=17.6&&h<18.8?'#E7C6A2':'#2C3549'}
+function win(x,y,w,hh,h){return `<rect x="${x}" y="${y}" width="${w}" height="${hh}" rx="2" fill="#F4F2EC"/><rect x="${x+4}" y="${y+4}" width="${w-8}" height="${hh-8}" fill="${sky(h)}"/>${isDay(h)?`<circle cx="${x+w*.62}" cy="${y+hh*.72}" r="${w*.34}" fill="#9DB38A" opacity=".8"/><circle cx="${x+w*.3}" cy="${y+hh*.82}" r="${w*.26}" fill="#8BA678" opacity=".8"/>`:`<circle cx="${x+w*.7}" cy="${y+hh*.25}" r="2" fill="#E8E4D0"/>`}<rect x="${x+w/2-1.5}" y="${y+4}" width="3" height="${hh-8}" fill="#F4F2EC"/><rect x="${x+4}" y="${y+hh/2-1.5}" width="${w-8}" height="3" fill="#F4F2EC"/>`}
+function person(x,y,sc,rr,front){const hair=HAIR[Math.floor(rr()*HAIR.length)],shirt=SHIRTS[Math.floor(rr()*SHIRTS.length)];
+ return `<rect x="${x-9*sc}" y="${y-13*sc}" width="${18*sc}" height="${15*sc}" rx="${7*sc}" fill="${shirt}"/><circle cx="${x}" cy="${y-19*sc}" r="${6.2*sc}" fill="${front?'#B98866':hair}"/>${front?`<path d="M${x-6.2*sc} ${y-20*sc}a${6.2*sc} ${6.2*sc} 0 0 1 ${12.4*sc} 0z" fill="${hair}"/>`:''}`}
+function ceiling(r,on){let g='',e='';
+ [70,150,230].forEach(x=>{g+=`<rect x="${x-24}" y="7" width="48" height="5" rx="2" fill="${on.L?'#FFF8DE':'#D4D1C9'}"/>`;if(on.L)e+=`<ellipse cx="${x}" cy="26" rx="62" ry="24" fill="#FFF2C4" opacity=".35"/>`});
+ if(r.fans>0)[110,190].forEach(x=>{g+=`<rect x="${x-1}" y="18" width="2" height="9" fill="#8C8C8C"/><g transform="translate(${x} 29) scale(1 .3)"><g class="${on.F?'spin':''}"><ellipse cx="0" cy="-12" rx="3.6" ry="13" fill="#8E8E8E"/><ellipse cx="10.4" cy="6" rx="3.6" ry="13" transform="rotate(120 10.4 6)" fill="#8E8E8E"/><ellipse cx="-10.4" cy="6" rx="3.6" ry="13" transform="rotate(240 -10.4 6)" fill="#8E8E8E"/><circle r="4" fill="#777"/></g></g>`});
+ return {g,e}}
+function acUnit(x,y,on){return {g:`<rect x="${x}" y="${y}" width="58" height="20" rx="4" fill="#F5F5F2" stroke="#CFCFCB"/><rect x="${x+5}" y="${y+14}" width="48" height="2" rx="1" fill="#D3D3CE"/>`,e:`<circle cx="${x+50}" cy="${y+6}" r="1.7" fill="${on?'#3BB273':'#A0A09A'}"/>${on?`<g class="air" stroke="#9CC7DE" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M${x+10} ${y+25}q4 3 0 6"/><path d="M${x+29} ${y+25}q4 3 0 6"/><path d="M${x+48} ${y+25}q4 3 0 6"/></g>`:''}`}}
+function scene(r,s,v){
+ const h=hourOf(simNow);const occ=v===4?true:s.occ;
+ const on=v===4?FULL(r):{L:s.L&&!s.cut,F:s.F&&!s.cut,A:s.A&&!s.cut,E:s.E&&!s.cut};
+ const p=PAL[r.type];const rr=rng(hashStr(r.id)+v*7);let g='',e='';
+ g+=`<rect width="300" height="285" fill="${p[0]}"/><rect width="300" height="20" fill="${p[2]}"/><rect y="174" width="300" height="111" fill="${p[1]}"/><rect y="170" width="300" height="5" fill="${p[2]}"/>`;
+ for(let i=0;i<6;i++)g+=`<line x1="${150+(i-2.5)*14}" y1="175" x2="${150+(i-2.5)*80}" y2="285" stroke="#000" stroke-opacity=".05"/>`;
+ const mirror=v===1;
+ const wx=mirror?236:14,ax=mirror?16:226;
+ if(r.type!=='library')g+=win(wx,40,50,90,h);
+ // focal wall
+ if(r.type==='class'){
+  if(v===1){g+=`<rect x="92" y="44" width="110" height="74" rx="3" fill="#C9A47C"/>`;for(let i=0;i<6;i++){g+=`<rect x="${100+(i%3)*33}" y="${50+Math.floor(i/3)*32}" width="24" height="${22+rr()*6|0}" fill="${['#FFFDF5','#FCEFB4','#E7F0F7'][i%3]}" transform="rotate(${(rr()-.5)*8} ${112+(i%3)*33} ${62+Math.floor(i/3)*32})"/>`}g+=`<rect x="${mirror?120:200}" y="100" width="0" height="0"/>`}
+  else{g+=`<rect x="72" y="36" width="156" height="82" rx="2" fill="#8C6F4E"/><rect x="76" y="40" width="148" height="74" fill="#2F4A3F"/>`;for(let i=0;i<4;i++)g+=`<line x1="88" y1="${54+i*13}" x2="${120+rr()*80}" y2="${54+i*13}" stroke="#E9EFE9" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>`;
+   if(r.equip>0)g+=`<rect x="140" y="20" width="20" height="8" rx="2" fill="#5A5A5A"/>`;}
+ }else if(r.type==='seminar'){
+  g+=`<rect x="62" y="28" width="176" height="98" rx="2" fill="#F2F2EF" stroke="#CFCFCB"/>`;
+  if(on.E)e+=`<rect x="70" y="36" width="160" height="82" fill="#DCEAF3"/><rect x="82" y="48" width="90" height="8" rx="2" fill="#4F6A7A"/><rect x="82" y="64" width="120" height="5" rx="2" fill="#93A9B6"/><rect x="82" y="74" width="100" height="5" rx="2" fill="#93A9B6"/><rect x="82" y="88" width="40" height="22" fill="#9DB38A"/><rect x="128" y="96" width="14" height="14" fill="#C9A24B"/><rect x="148" y="90" width="14" height="20" fill="#B5734F"/>`;
+  g+=`<rect x="${mirror?226:44}" y="120" width="30" height="50" rx="2" fill="#7A5A44"/>`;
+ }else if(r.type==='lab'){
+  g+=`<rect x="76" y="40" width="148" height="70" rx="2" fill="#FBFBF8" stroke="#CFCFCB"/><path d="M90 70l14-12 14 18 16-10 18 14" stroke="#4F6A7A" stroke-width="2" fill="none" opacity=".6"/><rect x="170" y="52" width="40" height="4" fill="#C62828" opacity=".35"/>`;
+ }else if(r.type==='library'){
+  for(let sh=0;sh<3;sh++){const y=34+sh*44;g+=`<rect x="10" y="${y+36}" width="280" height="5" fill="#8C6A4C"/>`;let x=14;while(x<284){const w=5+rr()*6,hh=24+rr()*10;g+=`<rect x="${x}" y="${y+36-hh}" width="${w}" height="${hh}" fill="${['#8E3B3B','#3F5E73','#6B7D4E','#C9A24B','#5B4636','#A36A4F','#2F4A3F'][Math.floor(rr()*7)]}"/>`;x+=w+1+(rr()<.08?10:0)}}
+  g+=`<rect x="0" y="20" width="10" height="152" fill="#8C6A4C"/><rect x="290" y="20" width="10" height="152" fill="#8C6A4C"/>`;
+ }else if(r.type==='hostel'){
+  g+=`<rect x="104" y="60" width="92" height="56" rx="3" fill="#25282C"/>`;if(on.E)e+=`<rect x="108" y="64" width="84" height="48" fill="#6C9BB8"/><rect x="108" y="96" width="84" height="16" fill="#7FA36A"/><circle cx="170" cy="76" r="6" fill="#F5E6A8"/>`;
+  g+=`<rect x="140" y="116" width="20" height="54" fill="#8C6A4C"/><rect x="${mirror?30:226}" y="54" width="34" height="46" fill="#C9A24B" opacity=".75"/><rect x="${mirror?34:230}" y="58" width="26" height="38" fill="#F4EFE3"/>`;
+ }else if(r.type==='office'){
+  g+=`<rect x="${mirror?200:84}" y="58" width="44" height="112" fill="#B8B4AA"/>${[0,1,2].map(i=>`<rect x="${(mirror?200:84)+4}" y="${64+i*36}" width="36" height="30" fill="#C9C5BC"/><rect x="${(mirror?200:84)+18}" y="${76+i*36}" width="8" height="3" fill="#8C8C8C"/>`).join('')}<rect x="${mirror?96:150}" y="50" width="44" height="52" fill="#FFFFFF" stroke="#D2CFC7"/><rect x="${mirror?96:150}" y="50" width="44" height="12" fill="#C62828" opacity=".7"/>`;
+ }
+ if(r.ac>0){const a=acUnit(ax,34,on.A);g+=a.g;e+=a.e}
+ // furniture
+ if(r.type==='class'||r.type==='seminar'){
+  const rows=[{y:194,w:172,n:5,sc:.72},{y:226,w:224,n:6,sc:.88},{y:262,w:276,n:7,sc:1.06}];
+  rows.forEach(rw=>{const x0=150-rw.w/2;
+   if(r.type==='seminar'){for(let i=0;i<rw.n;i++){const x=x0+(i+.5)*rw.w/rw.n;if(occ&&rr()<.85)g+=person(x,rw.y-4*rw.sc,rw.sc,rr,false);g+=`<rect x="${x-10*rw.sc}" y="${rw.y-8*rw.sc}" width="${20*rw.sc}" height="${18*rw.sc}" rx="${4*rw.sc}" fill="#8E3B3B"/>`}}
+   else{g+=`<rect x="${x0}" y="${rw.y-24*rw.sc}" width="${rw.w}" height="${7*rw.sc}" fill="#9C7A55"/>`;for(let i=0;i<rw.n;i++){const x=x0+(i+.5)*rw.w/rw.n;if(occ&&rr()<.86)g+=person(x,rw.y-4*rw.sc,rw.sc,rr,false);else if(!occ&&rr()<.08)g+=`<rect x="${x-5*rw.sc}" y="${rw.y-12*rw.sc}" width="${11*rw.sc}" height="${9*rw.sc}" rx="2" fill="#6D8BA6"/>`}g+=`<rect x="${x0}" y="${rw.y-2*rw.sc}" width="${rw.w}" height="${6*rw.sc}" fill="#7E6142"/>`}
+  });
+ }else if(r.type==='lab'){
+  [{y:206,w:210,n:5,sc:.82},{y:256,w:270,n:6,sc:1.04}].forEach(rw=>{const x0=150-rw.w/2;
+   for(let i=0;i<rw.n;i++){const x=x0+(i+.5)*rw.w/rw.n;if(occ&&rr()<.85)g+=person(x,rw.y-14*rw.sc,rw.sc*.95,rr,true)}
+   g+=`<rect x="${x0}" y="${rw.y-8*rw.sc}" width="${rw.w}" height="${10*rw.sc}" fill="#D8D6D0"/><rect x="${x0}" y="${rw.y+2*rw.sc}" width="${rw.w}" height="${14*rw.sc}" fill="#B9B6AE"/>`;
+   for(let i=0;i<rw.n;i++){const x=x0+(i+.5)*rw.w/rw.n;g+=`<rect x="${x-11*rw.sc}" y="${rw.y-27*rw.sc}" width="${22*rw.sc}" height="${16*rw.sc}" rx="1.5" fill="#2B3036"/><rect x="${x-2*rw.sc}" y="${rw.y-11*rw.sc}" width="${4*rw.sc}" height="${4*rw.sc}" fill="#555"/>`;if(on.E)e+=`<rect x="${x-9.5*rw.sc}" y="${rw.y-25.5*rw.sc}" width="${19*rw.sc}" height="${13*rw.sc}" fill="${r.id==='L-3'||r.id==='L-6'?'#A9CFE7':'#BFE3C9'}"/>`}
+  });
+ }else if(r.type==='library'){
+  [{y:218,w:180,sc:.85},{y:262,w:240,sc:1.05}].forEach((rw,k)=>{const x0=150-rw.w/2;
+   for(let i=0;i<4;i++){const x=x0+(i+.5)*rw.w/4;if(occ&&rr()<.8)g+=person(x,rw.y-10*rw.sc,rw.sc,rr,true)}
+   g+=`<rect x="${x0}" y="${rw.y-8*rw.sc}" width="${rw.w}" height="${9*rw.sc}" fill="#8C6A4C"/><rect x="${x0+6}" y="${rw.y+1*rw.sc}" width="${4*rw.sc}" height="${16*rw.sc}" fill="#6E513A"/><rect x="${x0+rw.w-10}" y="${rw.y+1*rw.sc}" width="${4*rw.sc}" height="${16*rw.sc}" fill="#6E513A"/>`;
+   [x0+rw.w*.3,x0+rw.w*.7].forEach(x=>{g+=`<rect x="${x-1}" y="${rw.y-22*rw.sc}" width="2" height="${14*rw.sc}" fill="#555"/><path d="M${x-9*rw.sc} ${rw.y-20*rw.sc}l4 -8h${10*rw.sc}l4 8z" fill="#2F6A4D"/>`;if(on.L)e+=`<ellipse cx="${x}" cy="${rw.y-8*rw.sc}" rx="${18*rw.sc}" ry="${5*rw.sc}" fill="#FFF2C4" opacity=".6"/>`});
+  });
+ }else if(r.type==='hostel'){
+  g+=`<rect x="40" y="214" width="150" height="40" rx="12" fill="#7D8C6E"/>`;if(occ){g+=person(80,226,1,rr,true)+person(120,226,1,rr,true)+person(158,228,1,rr,true)}g+=`<rect x="34" y="232" width="162" height="34" rx="10" fill="#6E7D60"/><rect x="214" y="226" width="60" height="44" fill="#9C7A55"/><rect x="220" y="232" width="48" height="32" fill="#D9C79E"/><circle cx="244" cy="248" r="4" fill="#8E3B3B"/>`;
+  if(occ)g+=person(244,224,.9,rr,true);
+  g+=`<rect x="${mirror?20:262}" y="140" width="22" height="34" rx="3" fill="#E9EDF0" stroke="#C9CDD0"/>`;
+ }else if(r.type==='office'){
+  [{x:mirror?60:180,y:240},{x:mirror?190:60,y:226}].forEach((d,k)=>{const sc=k?0.85:1.05;if(occ&&rr()<.9)g+=person(d.x,d.y-8*sc,sc,rr,true);g+=`<rect x="${d.x-40*sc}" y="${d.y-6*sc}" width="${80*sc}" height="${10*sc}" fill="#8C6A4C"/><rect x="${d.x-38*sc}" y="${d.y+4*sc}" width="${76*sc}" height="${22*sc}" fill="#7A5A44"/><rect x="${d.x-14*sc}" y="${d.y-28*sc}" width="${28*sc}" height="${20*sc}" rx="1.5" fill="#2B3036"/>`;if(on.E)e+=`<rect x="${d.x-12*sc}" y="${d.y-26*sc}" width="${24*sc}" height="${16*sc}" fill="#BFD9EA"/>`});
+ }
+ const c=ceiling(r,on);g+=c.g;
+ if(!on.L)g+=`<rect width="300" height="285" fill="#18202C" opacity="${isDay(h)?.13:.46}"/>`;
+ e+=c.e;
+ if(s.cut&&v!==4)e+=`<rect width="300" height="285" fill="#18202C" opacity=".05"/>`;
+ return svgWrap(g+e,r.name+(v===4?' during a class':v===1?' from the back':''));
+}
+function svgWrap(inner,label,vb='0 0 300 285'){return `<svg viewBox="${vb}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${label}">${inner}</svg>`}
+function sensorArt(r,s){const p=PAL[r.type];const live=!s.cut;
+ return svgWrap(`<rect width="300" height="285" fill="${p[0]}"/><rect x="0" y="0" width="300" height="285" fill="#fff" opacity=".18"/>
+ <rect x="141" y="0" width="18" height="74" fill="#D9D6CE"/><rect x="138" y="20" width="24" height="6" fill="#CBC7BD"/>
+ <path d="M126 76a24 24 0 0 1 48 0z" fill="#FBFBF9" stroke="#D2CEC6"/><path d="M134 76a16 18 0 0 1 32 0M142 76a8 12 0 0 1 16 0M150 52v24" stroke="#E2DED6" fill="none"/>
+ <rect x="66" y="76" width="168" height="124" rx="10" fill="#F6F5F1" stroke="#CFCBC2"/>
+ <rect x="80" y="92" width="140" height="86" rx="4" fill="#2F6A4D"/>
+ ${Array.from({length:15},(_,i)=>`<rect x="${88+i*8.6}" y="96" width="3" height="5" fill="#C9A24B"/>`).join('')}
+ <rect x="92" y="108" width="50" height="34" rx="2" fill="#B9BDC0"/><path d="M96 112h10v5h-10v5h10" stroke="#7F858A" fill="none" stroke-width="1.4"/><rect x="112" y="120" width="24" height="16" rx="1" fill="#9EA3A7"/>
+ <rect x="154" y="110" width="40" height="20" rx="1" fill="#1E2328"/><rect x="154" y="140" width="22" height="14" rx="1" fill="#3A5F84"/>
+ <circle cx="206" cy="164" r="4" fill="${live?'#4CD38A':'#E06A6A'}" class="blink"/><circle cx="194" cy="164" r="3" fill="#F4C34A" opacity=".85"/>
+ <rect x="80" y="184" width="70" height="11" rx="2" fill="#FFFFFF" stroke="#DDD"/><text x="86" y="192.5" font-family="Plus Jakarta Sans,sans-serif" font-size="8" font-weight="700" fill="#333">NODE ${r.id}</text>
+ <path d="M150 200C150 236 214 228 214 285" stroke="#2B2B2B" stroke-width="6" fill="none"/>
+ <ellipse cx="182" cy="231" rx="16" ry="11" fill="none" stroke="#3A3F44" stroke-width="9"/><path d="M196 228q26 -4 40 -40" stroke="#555" stroke-width="2.4" fill="none"/>`, 'Sensor node in '+r.name)}
+function panelArt(r,s){const p=PAL[r.type];const items=[['L1',s.L],['L2',s.L],['F1',s.F&&r.fans>0],['F2',s.F&&r.fans>2],['AC',s.A&&r.ac>0],['15A',s.E]];
+ return svgWrap(`<rect width="300" height="285" fill="${p[0]}"/><rect width="300" height="285" fill="#000" opacity=".03"/>
+ <rect x="34" y="62" width="150" height="160" rx="8" fill="#FBF8F1" stroke="#D6D0C3"/>
+ ${items.map(([l,o],i)=>{const x=50+(i%3)*42,y=82+Math.floor(i/3)*68;const live=o&&!s.cut;return `<rect x="${x}" y="${y}" width="30" height="42" rx="4" fill="#EFEBE2" stroke="#D2CBBD"/><rect x="${x+6}" y="${y+6}" width="18" height="30" rx="3" fill="#FFFFFF" stroke="#CFC8BA"/><rect x="${x+6}" y="${live?y+21:y+6}" width="18" height="15" rx="3" fill="${live?'#C62828':'#E3DED3'}" opacity="${live?.85:1}"/><text x="${x+15}" y="${y+56}" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-size="9" font-weight="700" fill="#6A6A6A">${l}</text>`}).join('')}
+ <rect x="204" y="96" width="70" height="92" rx="6" fill="#2E5D8C"/><rect x="214" y="106" width="22" height="30" rx="2" fill="#26292D"/><rect x="242" y="106" width="22" height="30" rx="2" fill="#26292D"/>
+ <circle cx="225" cy="150" r="4" fill="${s.cut?'#F05A5A':'#5A6670'}"/><circle cx="253" cy="150" r="4" fill="${s.cut?'#F05A5A':'#5A6670'}"/>
+ <text x="239" y="174" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-size="8.5" font-weight="700" fill="#DCE6F0">${s.cut?'RELAY OPEN':'RELAY CLOSED'}</text>
+ <path d="M184 140h20M184 120h20" stroke="#8C8C8C" stroke-width="2"/>`, 'Switchboard and relay in '+r.name)}
+function art(r,v){const s=S[r.id];return v===2?sensorArt(r,s):v===3?panelArt(r,s):scene(r,s,v)}
+const artSig=r=>{const s=S[r.id];return [s.occ,s.L,s.F,s.A,s.E,s.cut,isDay(hourOf(simNow))].map(Number).join('')};
+function facade(seed,lit){const rr=rng(seed);let g=`<rect width="300" height="200" fill="#CFE2EC"/><rect y="156" width="300" height="44" fill="#B5C4A3"/><rect x="40" y="40" width="220" height="122" fill="#E6DAC7" stroke="#CDBFA9"/><rect x="32" y="32" width="236" height="12" fill="#B39E83"/>`;
+ for(let rw=0;rw<4;rw++)for(let c=0;c<8;c++){if(rw===3&&(c===3||c===4))continue;g+=`<rect x="${54+c*25}" y="${54+rw*25}" width="15" height="15" fill="${rr()<lit?'#F2D58A':'#7D8C99'}"/>`}
+ g+=`<rect x="137" y="128" width="26" height="34" fill="#7A5A44"/><circle cx="22" cy="150" r="20" fill="#7E9A6A"/><circle cx="282" cy="146" r="22" fill="#86A272"/>`;return svgWrap(g,'Hostel building','0 0 300 200')}
+
+/* ============ filters + explore ============ */
+const CATS=[
+ {k:'all',l:'All rooms',i:'grid',f:()=>true},
+ {k:'waste',l:'Wasting now',i:'bolt',f:(r,s)=>isWaste(s)},
+ {k:'inuse',l:'In use',i:'users',f:(r,s)=>s.occ},
+ {k:'class',l:'Classrooms',i:'board',f:r=>r.type==='class'},
+ {k:'lab',l:'Labs',i:'flask',f:r=>r.type==='lab'},
+ {k:'seminar',l:'Seminar halls',i:'present',f:r=>r.type==='seminar'},
+ {k:'library',l:'Library',i:'book',f:r=>r.type==='library'},
+ {k:'hostel',l:'Hostel',i:'bed',f:r=>r.type==='hostel'},
+ {k:'office',l:'Offices',i:'brief',f:r=>r.type==='office'},
+ {k:'ac',l:'AC running',i:'snow',f:(r,s)=>s.A&&!s.cut&&r.ac>0},
+ {k:'cut',l:'Relay off',i:'power',f:(r,s)=>s.cut},
+];
+const ST={any:{l:'Any status',f:()=>true},waste:{l:'Wasting now',f:(r,s)=>isWaste(s)},inuse:{l:'In use',f:(r,s)=>s.occ},off:{l:'Empty and off',f:(r,s)=>!s.occ&&!anyOn(s)&&!s.cut},cut:{l:'Relay off',f:(r,s)=>s.cut}};
+const F={cat:'all',b:'',q:'',st:'any',bset:new Set(BUILDINGS.map(b=>b.id)),acOnly:false,emptyOnly:false};
+function match(r,F2=F){const s=S[r.id];const q=F2.q.trim().toLowerCase();
+ return CATS.find(c=>c.k===F2.cat).f(r,s)&&(!F2.b||r.b===F2.b)&&(!q||(r.name+' '+r.id+' '+BY[r.b].name+' '+BY[r.b].short).toLowerCase().includes(q))&&ST[F2.st].f(r,s)&&F2.bset.has(r.b)&&(!F2.acOnly||r.ac>0)&&(!F2.emptyOnly||!s.occ)}
+const extraFilterCount=()=>(F.bset.size<BUILDINGS.length?1:0)+(F.acOnly?1:0)+(F.emptyOnly?1:0);
+
+function buildCats(){
+ $('#catrow').innerHTML=CATS.map(c=>`<button class="cat${c.k===F.cat?' on':''}" data-k="${c.k}">${ic(c.i,24,1.5)}<span>${c.l}</span>${c.k==='waste'?'<span class="cnt" id="wasteCnt"></span>':''}</button>`).join('');
+ $$('.cat').forEach(b=>b.onclick=()=>{F.cat=b.dataset.k;$$('.cat').forEach(x=>x.classList.toggle('on',x===b));applyFilters();window.scrollTo({top:0,behavior:'smooth'})});
+ const sc=$('#catscroll'),row=$('#catrow');
+ const upd=()=>{sc.classList.toggle('atstart',row.scrollLeft<4);sc.classList.toggle('atend',row.scrollLeft+row.clientWidth>=row.scrollWidth-4)};
+ row.addEventListener('scroll',upd);window.addEventListener('resize',upd);upd();
+ $('.catarrow.l').onclick=()=>row.scrollBy({left:-300});$('.catarrow.r').onclick=()=>row.scrollBy({left:300});
+}
+const cards={};
+function buildCards(){
+ const grid=$('#grid');grid.innerHTML='';grid._h=null;for(const k in cards)delete cards[k];
+ ROOMS.forEach(r=>{
+  const c=document.createElement('article');c.className='card';c.dataset.id=r.id;c.tabIndex=0;c.setAttribute('aria-label',r.name+', '+BY[r.b].name);
+  c.innerHTML=`<div class="ph"><div class="track">${[0,2,3].map((v,i)=>`<div class="slide" data-v="${v}"></div>`).join('')}</div>
+   <div class="stpill"><i class="dotc"></i><span></span></div>
+   <button class="bm" aria-label="Watch this room">${ic('bookmark',24,2)}</button>
+   <button class="arr l" aria-label="Previous photo" hidden>${ic('left',14,2.4)}</button><button class="arr r" aria-label="Next photo">${ic('right',14,2.4)}</button>
+   <div class="dots"><i class="on"></i><i></i><i></i></div></div>
+   <div class="meta"><div class="t"><span>${r.name}, ${BY[r.b].short}</span><span class="kw tnum"></span></div><div class="l app-l"></div><div class="l mot"></div><div class="p tnum"></div></div>`;
+  let idx=0;const track=$('.track',c);
+  const go=d=>{idx=clamp(idx+d,0,2);track.style.transform=`translateX(-${idx*100}%)`;$$('.dots i',c).forEach((x,i)=>x.classList.toggle('on',i===idx));$('.arr.l',c).hidden=idx===0;$('.arr.r',c).hidden=idx===2};
+  $('.arr.l',c).onclick=e=>{e.stopPropagation();go(-1)};$('.arr.r',c).onclick=e=>{e.stopPropagation();go(1)};
+  $('.bm',c).onclick=e=>{e.stopPropagation();S[r.id].watched=!S[r.id].watched;$('.bm',c).classList.toggle('on',S[r.id].watched);toast({title:S[r.id].watched?`Watching ${r.name}`:`Stopped watching ${r.name}`,sub:S[r.id].watched?'You will get its alerts too.':'',room:r.id,small:true})};
+  c.onclick=()=>{location.hash='room-'+r.id};
+  c.onkeydown=e=>{if(e.key==='Enter')location.hash='room-'+r.id};
+  c.onmouseenter=()=>hlBuilding(r.b,true);c.onmouseleave=()=>hlBuilding(r.b,false);
+  // touch swipe
+  let sx=null;c.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});c.addEventListener('touchend',e=>{if(sx==null)return;const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>40)go(dx<0?1:-1);sx=null});
+  grid.appendChild(c);cards[r.id]=c;
+ });
+ const em=document.createElement('div');em.className='empty';em.id='gridEmpty';em.hidden=true;em.innerHTML=ROOMS.length?`<h3>No rooms match</h3><p>Try a different category or clear your filters.</p><button class="btn btn-line btn-sm" id="clearAll">Clear all filters</button>`:`<h3>No rooms yet</h3><p>${store.canEdit?'Add your first classroom, lab or office to start monitoring it.':'The owner has not added any rooms yet.'}</p>${store.canEdit?`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary btn-sm" id="emAdd">${ic('plus',16,2)}Add a room</button><button class="btn btn-line btn-sm" id="emSample">Load the sample campus</button></div>`:''}`;grid.appendChild(em);
+ if($('#clearAll'))$('#clearAll').onclick=clearFilters;if($('#emAdd'))$('#emAdd').onclick=()=>roomForm(null);if($('#emSample'))$('#emSample').onclick=restoreSample;
+}
+function updateCards(){
+ const h=hourOf(simNow);
+ ROOMS.forEach(r=>{const c=cards[r.id],s=S[r.id];if(!c)return;
+  const st=status(r,s);const pill=$('.stpill',c);$('.dotc',pill).className='dotc t-'+st.tone;$('span',pill).textContent=st.label;
+  const sig=artSig(r);if(c._sig!==sig){$$('.slide',c).forEach(sl=>{sl.innerHTML=art(r,+sl.dataset.v)+(sl.dataset.v==='2'?'<span class="cap">Sensor node</span>':sl.dataset.v==='3'?'<span class="cap">Switchboard and relay</span>':'')});c._sig=sig}
+  $('.kw',c).textContent=s.kw<.05?'Standby':num(s.kw,1)+' kW';
+  const parts=[];if(r.ac)parts.push(r.ac>1?`${r.ac} ACs`:'AC');if(r.fans)parts.push(`${r.fans} fans`);parts.push(`${r.lights} lights`);if(r.type==='lab')parts.push('equipment');
+  $('.app-l',c).textContent=`${TYPE_LABEL[r.type]} · ${parts.join(', ')}`;
+  $('.mot',c).textContent=s.occ?(r.slots&&curSlotEnd(r,h)?`Occupied until ${fmtH(curSlotEnd(r,h))}`:'Motion in the last few minutes'):s.lastMotion?`Last motion ${fmtDur(simNow-s.lastMotion)} ago`:'No motion today';
+  const p=$('.p',c);const rate=s.kw*TARIFF;
+  p.className='p tnum'+(st.tone==='bad'?' bad':'');
+  p.innerHTML=s.cut?`<b>${inr(s.savedKw*TARIFF)}/hr</b> saved by relay`:`<b>${inr(rate)}/hr</b> <span class="muted">· ${inr(s.hourly.reduce((a,b)=>a+b,0)*TARIFF)} today</span>`;
+ });
+}
+function applyFilters(){let n=0;ROOMS.forEach(r=>{const m=match(r);if(cards[r.id])cards[r.id].hidden=!m;if(m)n++});const ge=$('#gridEmpty');if(ge)ge.hidden=n>0;
+ $('#segBld').textContent=F.b?BY[F.b].name:'Any building';$('#segSt').textContent=ST[F.st].l;
+ const fc=extraFilterCount();$('#filterBtn').innerHTML=`${fc?`<span class="n">${fc}</span>`:ic('filter',16)}<span class="t">Filters</span>`;
+ $$('.mk').forEach(m=>m.classList.toggle('sel',m.dataset.b===F.b));
+ const mc=$('#mapClear');if(mc)mc.hidden=!F.b;
+}
+function clearFilters(){Object.assign(F,{cat:'all',b:'',q:'',st:'any',acOnly:false,emptyOnly:false});F.bset=new Set(BUILDINGS.map(b=>b.id));$('#q').value='';$$('.cat').forEach(x=>x.classList.toggle('on',x.dataset.k==='all'));applyFilters()}
+function updateSummary(){
+ let tot=0,wkw=0,wn=0;ROOMS.forEach(r=>{const s=S[r.id];tot+=s.kw;if(isWaste(s)){wkw+=s.kw;wn++}});
+ setHTML($('#summary'),`<span>Right now ${ROOMS.length} monitored room${ROOMS.length===1?'':'s'}${APP.campusName?` at ${APP.campusName}`:''} draw <strong class="tnum">${inr(tot*TARIFF)}/hr</strong>.</span><span class="sep"></span><span>${wn?`<strong style="color:var(--bad)" class="tnum">${wn} empty ${wn>1?'rooms are':'room is'} wasting ${inr(wkw*TARIFF)}/hr.</strong> <a data-go="waste">Show them</a>`:'No empty room is wasting power.'}</span>${savedRs>0.5?`<span class="sep"></span><span>Relays saved <strong class="tnum">${inr(savedRs)}</strong> today.</span>`:''}`);
+ const a=$('#summary [data-go]');if(a)a.onclick=()=>{F.cat='waste';$$('.cat').forEach(x=>x.classList.toggle('on',x.dataset.k==='waste'));applyFilters()};
+ const wc=$('#wasteCnt');if(wc){wc.textContent=wn;wc.hidden=!wn}
+}
+
+/* map */
+function buildMap(){
+ const rr=rng(77);let t='';
+ for(let i=0;i<70;i++){const x=rr()*600,y=rr()*700;if(BUILDINGS.some(b=>x>b.x-12&&x<b.x+b.w+12&&y>b.y-12&&y<b.y+b.h+30))continue;if(x>232&&x<264)continue;if(x>384&&x<576&&y>462&&y<628)continue;t+=`<circle cx="${x}" cy="${y}" r="${5+rr()*6}" fill="#B9CDA8" opacity=".9"/>`}
+ const bl=BUILDINGS.map(b=>`<rect class="bld" data-b="${b.id}" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="6"/><text x="${b.x+b.w/2}" y="${b.y+b.h+16}" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-size="11.5" font-weight="600" fill="#6A6A6A">${b.name}</text><g class="wd" data-b="${b.id}"></g>`).join('');
+ const mk=BUILDINGS.map(b=>`<g class="mk" data-b="${b.id}" tabindex="0" role="button" aria-label="${b.name}"><g class="inner"><rect class="pillbg" x="0" y="0" height="28" rx="14"/><circle class="mdot" r="4" cy="14"/><text y="18.5"></text></g></g>`).join('');
+ $('#mapwrap').innerHTML=`<svg viewBox="0 0 600 700" preserveAspectRatio="xMidYMid meet" aria-label="Campus map with live load per building">
+  <rect width="600" height="700" fill="var(--map-ground)"/>
+  <rect x="256" y="150" width="62" height="138" rx="8" fill="var(--map-green)"/>
+  <rect x="392" y="468" width="180" height="156" rx="10" fill="var(--map-green)"/><rect x="408" y="484" width="148" height="124" rx="60" fill="none" stroke="#fff" stroke-width="2"/><text x="482" y="552" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-size="11" font-weight="600" fill="#7A8A6E">Sports ground</text>
+  <g fill="var(--map-road)" stroke="#E0E0DA"><rect x="12" y="126" width="580" height="18"/><rect x="236" y="126" width="18" height="574"/><rect x="12" y="290" width="242" height="16"/><rect x="254" y="432" width="338" height="16"/><rect x="12" y="514" width="372" height="16"/></g>
+  <rect x="424" y="34" width="150" height="76" rx="6" fill="#E6E6E1"/>${Array.from({length:9},(_,i)=>`<line x1="${436+i*16}" y1="40" x2="${436+i*16}" y2="64" stroke="#fff" stroke-width="2"/>`).join('')}<text x="499" y="96" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-size="10.5" font-weight="600" fill="#8F8F8F">Parking</text>
+  <rect x="270" y="458" width="84" height="44" rx="6" fill="#ECEAE4" stroke="#D6D2C8"/><text x="312" y="485" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-size="10.5" font-weight="600" fill="#8F8F8F">Canteen</text>
+  <rect x="508" y="640" width="52" height="40" rx="4" fill="#E2E0DA" stroke="#CBC6BA"/><path d="M536 648l-8 12h6l-2 10 9-13h-6z" fill="#8F8F8F"/><text x="534" y="694" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-size="10" font-weight="600" fill="#8F8F8F">Substation</text>
+  <text x="245" y="694" text-anchor="middle" font-family="Plus Jakarta Sans,sans-serif" font-size="10.5" font-weight="700" fill="#8F8F8F">Main gate</text>
+  ${t}${bl}${mk}</svg>
+  <button class="mapclear" id="mapClear" hidden>${ic('x',14,2)}Show all buildings</button>
+  <div class="maplegend"><b>Live load by building</b><div><span><i class="dotc t-ok"></i>Efficient</span><span><i class="dotc t-warn"></i>Watch</span><span><i class="dotc t-bad"></i>Waste</span></div></div>`;
+ $$('.mk').forEach(m=>{const b=m.dataset.b;
+  m.onmouseenter=()=>hlCards(b,true);m.onmouseleave=()=>hlCards(b,false);
+  const pick=()=>{F.b=F.b===b?'':b;applyFilters();if(innerWidth<=1128&&F.b){document.body.classList.remove('show-map');syncMapToggle()}};
+  m.onclick=pick;m.onkeydown=e=>{if(e.key==='Enter')pick()}});
+ $('#mapClear').onclick=()=>{F.b='';applyFilters()};
+}
+function hlBuilding(b,on){const m=$(`.mk[data-b="${b}"]`);if(m)m.classList.toggle('hl',on);const bl=$(`.bld[data-b="${b}"]`);if(bl)bl.classList.toggle('hl',on)}
+function hlCards(b,on){ROOMS.filter(r=>r.b===b).forEach(r=>cards[r.id]&&cards[r.id].classList.toggle('hl',on));const bl=$(`.bld[data-b="${b}"]`);if(bl)bl.classList.toggle('hl',on)}
+function updateMap(){
+ BUILDINGS.forEach(b=>{const rs=ROOMS.filter(r=>r.b===b.id);let kw=0,tone='ok',wasting=[];
+  rs.forEach(r=>{const s=S[r.id];kw+=s.kw;const st=status(r,s);if(st.tone==='bad'){tone='bad';wasting.push(r)}else if(st.tone==='warn'&&tone!=='bad')tone='warn'});
+  const m=$(`.mk[data-b="${b.id}"]`);if(!m)return;const txt=`${inr(kw*TARIFF)}/hr`;const w=34+txt.length*7.6;
+  const cx=b.x+b.w/2,cy=b.y+b.h/2-14;$('.inner',m).setAttribute('transform',`translate(${cx-w/2} ${cy})`);
+  $('.pillbg',m).setAttribute('width',w);$('text',m).textContent=txt;$('text',m).setAttribute('x',22);$('.mdot',m).setAttribute('cx',13);
+  $('.mdot',m).setAttribute('fill',tone==='bad'?'#C62828':tone==='warn'?'#B7791F':'#2E7D32');
+  const wd=$(`.wd[data-b="${b.id}"]`);const key=wasting.map(r=>r.id).join();if(wd._k!==key){wd._k=key;wd.innerHTML=wasting.map((r,i)=>{const x=b.x+b.w/2+(i-(wasting.length-1)/2)*22,y=b.y+b.h-16;return `<circle class="pulse" cx="${x}" cy="${y}" r="5" fill="#C62828"/><circle cx="${x}" cy="${y}" r="5" fill="#C62828" stroke="#fff" stroke-width="2"><title>${r.name}</title></circle>`}).join('')}
+ });
+}
+
+/* search pops + filters modal */
+let openPop=null;
+function closePop(){if(openPop){openPop.remove();openPop=null;$$('.seg').forEach(s=>s.classList.remove('open'))}}
+function showPop(seg,kind){
+ closePop();seg.classList.add('open');const p=document.createElement('div');p.className='pop';
+ const box=$('#search').getBoundingClientRect(),sb=seg.getBoundingClientRect();p.style.left=Math.max(0,sb.left-box.left)+'px';
+ if(kind==='bld'){p.innerHTML=`<button data-v="" class="${!F.b?'sel':''}"><span>Any building</span><small>${ROOMS.length} rooms</small></button>`+BUILDINGS.map(b=>{const rs=ROOMS.filter(r=>r.b===b.id);const kw=rs.reduce((a,r)=>a+S[r.id].kw,0);return `<button data-v="${b.id}" class="${F.b===b.id?'sel':''}"><span>${b.name}<br><small>${rs.length} rooms</small></span><small class="tnum">${inr(kw*TARIFF)}/hr</small></button>`}).join('');
+  $$('button',p).forEach(x=>x.onclick=()=>{F.b=x.dataset.v;applyFilters();closePop()});}
+ else{p.innerHTML=Object.entries(ST).map(([k,v])=>`<button data-v="${k}" class="${F.st===k?'sel':''}"><span>${v.l}</span><small>${ROOMS.filter(r=>v.f(r,S[r.id])).length}</small></button>`).join('');
+  $$('button',p).forEach(x=>x.onclick=()=>{F.st=x.dataset.v;applyFilters();closePop()});if(kind==='st')p.style.left='auto',p.style.right='0';}
+ $('#search').appendChild(p);openPop=p;
+}
+function filtersModal(){
+ const tmp={bset:new Set(F.bset),acOnly:F.acOnly,emptyOnly:F.emptyOnly};
+ const body=`<div class="fgroup"><h3>Buildings</h3><div class="checks">${BUILDINGS.map(b=>`<label class="check"><input type="checkbox" id="fb-${b.id}" data-b="${b.id}" ${tmp.bset.has(b.id)?'checked':''}>${b.name}</label>`).join('')}</div></div>
+ <div class="fgroup"><h3>Room details</h3>
+ <div class="switchrow"><div>Rooms with AC<small>Only show rooms that have at least one AC</small></div><label class="sw"><input type="checkbox" id="fAc" ${tmp.acOnly?'checked':''}><span></span></label></div>
+ <div class="switchrow"><div>Empty rooms only<small>Hide rooms with people in them right now</small></div><label class="sw"><input type="checkbox" id="fEm" ${tmp.emptyOnly?'checked':''}><span></span></label></div></div>`;
+ const m=modal({title:'Filters',body,foot:`<button class="ulink" id="fClear">Clear all</button><button class="btn btn-primary" id="fApply"></button>`});
+ const cnt=()=>{const F2={...F,...tmp};return ROOMS.filter(r=>match(r,F2)).length};
+ const upd=()=>{const n=cnt();$('#fApply',m).textContent=`Show ${n} room${n===1?'':'s'}`};
+ $$('input[data-b]',m).forEach(i=>i.onchange=()=>{i.checked?tmp.bset.add(i.dataset.b):tmp.bset.delete(i.dataset.b);upd()});
+ $('#fAc',m).onchange=e=>{tmp.acOnly=e.target.checked;upd()};$('#fEm',m).onchange=e=>{tmp.emptyOnly=e.target.checked;upd()};
+ $('#fClear',m).onclick=()=>{tmp.bset=new Set(BUILDINGS.map(b=>b.id));tmp.acOnly=tmp.emptyOnly=false;$$('input',m).forEach(i=>i.checked=!!i.dataset.b);upd()};
+ $('#fApply',m).onclick=()=>{Object.assign(F,tmp);applyFilters();closeModal()};upd();
+}
+
+/* modal + toast */
+function modal({title,body,foot='',wide=false}){
+ closeModal();const root=$('#modalRoot');
+ root.innerHTML=`<div class="scrim" id="scrim"><div class="dialog${wide?' wide':''}" role="dialog" aria-modal="true" aria-label="${title}"><header><button class="iconbtn" id="mClose" aria-label="Close">${ic('x',16,2)}</button><span>${title}</span><span></span></header><div class="bd">${body}</div>${foot?`<footer>${foot}</footer>`:''}</div></div>`;
+ $('#mClose').onclick=closeModal;$('#scrim').onclick=e=>{if(e.target.id==='scrim')closeModal()};
+ setTimeout(()=>{const f=$('.dialog button:not(#mClose), .dialog input',root);(f||$('#mClose')).focus()},30);
+ return $('.dialog',root);
+}
+function closeModal(){$('#modalRoot').innerHTML=''}
+function confirmCut(id){
+ const r=RM[id],s=S[id];const items=onList(r,s);
+ const m=modal({title:'Turn off power',body:`<h2 style="font-size:22px;margin-bottom:10px">Turn off power in ${r.name}?</h2><p class="muted" style="margin-bottom:16px">The relay on node ${r.id} will switch off ${joinList(items)}. ${r.name} has had no motion for ${fmtDur(simNow-(s.lastMotion||s.emptySince||simNow))}.</p><p>Anyone who walks in turns the power back on automatically, so a late class is never left in the dark.</p>`,foot:`<button class="ulink" id="cNo">Cancel</button><button class="btn btn-danger" id="cYes">${ic('power',18,2)}Turn off power</button>`});
+ $('#cNo',m).onclick=closeModal;$('#cYes',m).onclick=()=>{closeModal();cutPower(id,'manual')};
+}
+function toast({title,sub='',room,bad,alert,small}){
+ const t=document.createElement('div');t.className='toast';
+ t.innerHTML=`<div class="ic${bad?' bad':''}">${ic(bad?'alert':'send',18,2)}</div><div><small>${bad?APP.appName+' bot · Telegram · now':APP.appName}</small><b>${title}</b>${sub?`<small>${sub}</small>`:''}${room&&!small?`<div class="acts">${bad&&!S[room].cut?`<button data-a="cut">Turn off</button>`:''}<button data-a="view">View room</button></div>`:''}</div><button class="iconbtn" style="width:28px;height:28px" aria-label="Dismiss">${ic('x',14,2)}</button>`;
+ const kill=()=>{t.classList.add('out');setTimeout(()=>t.remove(),250)};
+ $('.iconbtn',t).onclick=kill;
+ const c=$('[data-a="cut"]',t);if(c)c.onclick=()=>{kill();confirmCut(room)};
+ const v=$('[data-a="view"]',t);if(v)v.onclick=()=>{kill();location.hash='room-'+room};
+ const box=$('#toasts');box.prepend(t);while(box.children.length>3)box.lastChild.remove();
+ setTimeout(kill,bad?9000:5000);
+}
+
+/* ============ room page ============ */
+let curRoom=null;
+const NOTES={
+ A:[['Prof. Suresh Hegde','Building in-charge','5 Oct','Room 310 fans stay on after the last hour almost every day. Class reps now get the Telegram alert as well, which has helped.'],['Lakshmi M.','Housekeeping supervisor','28 Sep','Seminar Hall 1 projector was left on standby through the weekend. Asked AV staff to switch it off at the plug.']],
+ B:[['Dr. Kavitha Rao','Building in-charge','9 Oct','The two ACs in Room 204 have no timer. Most of the waste here is after the 10:40 lecture, when the room is free until 3 PM.'],['Harish K.','Electrician','2 Oct','Relay fitted on the AC circuit and the lighting circuit. Fans are on a separate board and are not cut yet.']],
+ L:[['Mr. Ramesh Gowda','Lab superintendent','7 Oct','Lab 3 PCs are set to sleep after 30 minutes, but the monitors and lights still need the relay.'],['Anil P.','Lab assistant','30 Sep','Thermal lab blowers take 10 minutes to cool down before they can be switched off. Please do not cut power before 12:40.']],
+ Y:[['Ms. Anitha Shenoy','Chief librarian','6 Oct','Reading hall is busy from opening to close. The periodicals section is often empty after 4 PM.'],['Rakesh S.','Library staff','25 Sep','Digital library ACs run on weekends for two or three students. We are moving them to the reading hall on Sundays.']],
+ H:[['Mr. Prakash Naik','Warden','8 Oct','Study room lights stay on through the morning after night study. Floor reps are reminded in the hostel group.'],['Sneha R.','Hostel council','1 Oct','The common room TV is switched off at the wall at 11 PM now. Kaveri moved to first place this week.']],
+ D:[['Ms. Deepa Kulkarni','Administrative officer','4 Oct','Board room ACs are switched on an hour before meetings. Ten minutes is enough on most days.'],['Vinay H.','Accounts','27 Sep','The printer in accounts stays on overnight because of the scan queue. IT is looking at it.']],
+};
+function renderRoom(id){
+ const r=RM[id];if(!r){location.hash='explore';return}curRoom=id;const b=BY[r.b];
+ const v=$('#v-room');
+ v.innerHTML=`<a class="back" href="#explore">${ic('left',16,2.2)}All rooms</a>
+ <div class="rhead"><div><h1>${r.name}</h1><p class="muted">${b.name} · ${FLOOR(r.floor)} · Node ${r.id}</p></div><div class="acts"><button id="rEdit" data-edit>${ic('edit',16,2)}Edit</button><button id="rRemove" data-edit>${ic('trash',16,2)}Remove</button><button id="rShare">${ic('share',16,2)}Share</button><button id="rWatch">${ic('bookmark',16,2)}<span>${S[id].watched?'Watching':'Watch'}</span></button></div></div>
+ <div class="photos" id="rPhotos"></div>
+ <div class="rbody"><div>
+  <div class="sec"><div class="kicker">${TYPE_LABEL[r.type]} · ${r.seats} seats</div><p class="kick-sub">${r.slots&&!r.slots.length?'No classes on the timetable today. The room should stay empty.':r.slots?'Timetable today: '+r.slots.map(([a,c])=>`${fmtH(a)}–${fmtH(c)}`).join(', '):r.type==='library'?'Open 8:00 AM to 8:00 PM. Occupancy comes from the PIR sensor.':r.type==='hostel'?'Open all day. Occupancy comes from the PIR sensor.':'Office hours 9:30 AM to 5:30 PM.'}</p></div>
+  <div class="sec"><h2>Power right now</h2><p class="sub" id="rLiveSub"></p><div class="chartbox" id="rLive"></div></div>
+  <div class="sec"><h2>Today by hour</h2><p class="sub" id="rHourSub"></p><div class="chartbox" id="rHour"></div><div class="legend"><span><i style="background:var(--accent)"></i>Room in use</span><span><i style="background:var(--bad)"></i>No one in the room</span><span><i style="background:var(--line)"></i>Standby</span></div></div>
+  <div class="sec"><h2>What's running</h2><div class="applist" id="rApps"></div></div>
+  <div class="sec"><h2>Occupancy today</h2><p class="sub">From the PIR sensor${r.slots?', with timetable slots behind it':''}. The sensor only reports presence. It has no camera.</p><div id="rOcc"></div></div>
+  <div class="sec"><div class="person"><div class="av" style="background:${b.inc.col}">${b.inc.name.split(' ').slice(-2).map(x=>x[0]).join('')}</div><div><h3>${b.inc.name}</h3><p class="muted">${b.inc.role} · Usually responds in ${b.inc.resp}</p><p class="muted">Gets alerts on Telegram at ${b.inc.tg}</p></div></div></div>
+  <div class="sec" style="border-bottom:0"><h2>Notes from the building</h2><div class="notes">${NOTES[r.b].map(([n,role,d,t])=>`<div class="note"><div class="who"><div class="av" style="background:${['#556B3E','#6B5B73','#8A5A44','#45607A'][hashStr(n)%4]}">${n.replace(/^(Dr\.|Prof\.|Mr\.|Ms\.) /,'')[0]}</div><div><b>${n}</b><small>${role} · ${d}</small></div></div><p>${t}</p></div>`).join('')}</div></div>
+ </div><div class="stick"><div class="rcard" id="rCard"></div><p class="fine" style="text-align:center;margin-top:16px;color:var(--ink-2);font-size:13px">Relay cuts the AC and lighting circuits. Power comes back when the sensor sees someone.</p></div></div>`;
+ $('#rShare').onclick=()=>{const t=`${r.name}, ${b.name} (node ${r.id}) on ${APP.appName}`;const done=()=>toast({title:'Room details copied',sub:t,small:true});try{navigator.clipboard.writeText(t).then(done,done)}catch(e){done()}};
+ $('#rWatch').onclick=()=>{const s=S[id];s.watched=!s.watched;$('#rWatch span').textContent=s.watched?'Watching':'Watch';cards[id]&&$('.bm',cards[id]).classList.toggle('on',s.watched)};
+ $('#rPhotos')._sig=null;updateRoom();
+ $('#rEdit').onclick=()=>roomForm(id);$('#rRemove').onclick=()=>confirmRemove(id);refreshEditUI();
+}
+function photosHTML(r){return [0,1,2,3,4].map(v=>`<div data-v="${v}">${art(r,v)}</div>`).join('')+`<button class="allbtn" id="allPhotos">${ic('photos',16,2)}Show all photos</button>`}
+function gallery(r){modal({title:r.name,wide:true,body:`<div class="gallery">${[[0,'Front of the room, live'],[4,'The same room during a class'],[1,'From the back'],[2,'Sensor node: ESP32, PIR sensor and current clamp'],[3,'Switchboard and relay']].map(([v,c])=>`<figure>${art(r,v)}<figcaption>${c}</figcaption></figure>`).join('')}</div>`})}
+function updateRoom(){
+ const id=curRoom;if(!id)return;const r=RM[id],s=S[id],h=hourOf(simNow);
+ const ph=$('#rPhotos');const sig=artSig(r);if(ph._sig!==sig){ph.innerHTML=photosHTML(r);ph._sig=sig;$$('#rPhotos > div').forEach(d=>d.onclick=()=>gallery(r));$('#allPhotos').onclick=e=>{e.stopPropagation();gallery(r)}}
+ // card
+ const st=status(r,s);const rate=s.kw*TARIFF;const todayK=s.hourly.reduce((a,b)=>a+b,0);
+ let action='';
+ if(s.cut)action=`<div class="okline"><svg class="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>Power off. Saving ${inr(s.savedKw*TARIFF)}/hr</div><button class="btn btn-line btn-block" id="rRestore">Turn power back on</button>`;
+ else if(isWaste(s))action=`<div class="warnline">${ic('alert',20,2)}<span>${cap(joinList(onList(r,s)))} running ${fmtDur(simNow-s.emptySince)} with no occupancy</span></div><button class="btn btn-primary btn-block" id="rCut">${ic('power',18,2)}Turn off power</button>`;
+ else if(s.occ){const e=curSlotEnd(r,h);action=`<div class="okline" style="color:var(--ink)">${ic('users',20,2)}${e?`In use until ${fmtH(e)}`:'In use right now'}</div><button class="btn btn-line btn-block" disabled style="opacity:.5;cursor:not-allowed">Turn off power</button>`}
+ else if(anyOn(s))action=`<div class="okline" style="color:var(--warn)">${ic('clock',20,2)}Emptied ${fmtDur(simNow-s.emptySince)} ago. Alert after 15 min.</div><button class="btn btn-line btn-block" id="rCut">Turn off power now</button>`;
+ else action=`<div class="okline" style="color:var(--ink-2)">${ic('check',20,2)}Empty and switched off</div>`;
+ const ns=nextSlot(r,h);
+ setHTML($('#rCard'),`<div class="price"><b class="tnum">${inr(s.cut?0:rate)}</b><span class="muted">/hr</span><span class="muted">·</span><span class="tnum">${s.kw<.05?'Standby':num(s.kw,2)+' kW'}</span></div>
+  <div class="rows"><div><small>Status</small><span>${st.label}</span></div><div><small>Last motion</small><span class="tnum">${s.occ?'Now':s.lastMotion?fmtTime(s.lastMotion):'None today'}</span></div><div><small>Energy today</small><span class="tnum">${num(todayK,1)} kWh</span></div><div><small>Next class</small><span class="tnum">${ns?fmtH(ns):r.slots?'None today':'Not timetabled'}</span></div></div>
+  ${action}
+  <div class="tot"><span>Cost today</span><span class="tnum">${inr(todayK*TARIFF)}</span></div><div class="tot" style="border:0;padding-top:6px;margin-top:0;font-weight:400"><span class="muted">CO₂ today</span><span class="tnum muted">${num(todayK*CO2,1)} kg</span></div>`);
+ const c=$('#rCut');if(c)c.onclick=()=>confirmCut(id);const rs=$('#rRestore');if(rs)rs.onclick=()=>restorePower(id);
+ // live chart
+ $('#rLiveSub').textContent=`Kilowatts over the last ${fmtDur(60*2*speed*1000)} · reading every 2 seconds${speed>1?` (${speed}× time)`:''}`;
+ $('#rLive').innerHTML=liveChart(s.hist,isWaste(s)?'var(--bad)':'var(--accent)');
+ // hourly
+ const wasteK=s.hourly.reduce((a,k,i)=>{const o=occFrac(s,i);return a+(o<.5&&k>.05&&i<=h?k:0)},0);
+ $('#rHourSub').textContent=`${inr(todayK*TARIFF)} so far today. ${wasteK>.1?`${inr(wasteK*TARIFF)} of it was spent while the room was empty.`:'Almost nothing was spent while the room was empty.'}`;
+ $('#rHour').innerHTML=hourBars(s,h);
+ // apps
+ const rows=[];const af=acFactor(h);
+ const row=(i,n,sub,onn,kw)=>`<div class="app"><span>${ic(i,22,1.6)}</span><div class="nm">${n}<small>${sub}</small></div><span class="chip ${onn?(s.occ?'on':'bad'):''}">${onn?'On':'Off'}</span><span class="tnum" style="min-width:64px;text-align:right">${onn?num(kw,2)+' kW':'—'}</span></div>`;
+ const live=k=>s[k]&&!s.cut;
+ if(r.ac)rows.push(row('snow',r.ac>1?`${r.ac} split ACs`:'Split AC','1.5 ton, current clamp on the AC circuit',live('A'),r.ac*1.6*af*(s.spikeUntil>simNow?1.8:1)));
+ if(r.lights)rows.push(row('bulb',`${r.lights} LED tube lights`,'20 W each',live('L'),r.lights*.02));
+ if(r.fans)rows.push(row('fan',`${r.fans} ceiling fans`,'70 W each, separate board',live('F'),r.fans*.07));
+ if(r.equip)rows.push(row(r.type==='lab'||r.type==='office'||r.type==='library'?'monitor':'plug',EQUIP_LABEL[r.type],r.id==='L-3'?'40 desktop PCs':'Measured on the socket circuit',live('E'),r.equip));
+ setHTML($('#rApps'),rows.join(''));
+ $('#rOcc').innerHTML=occTrack(r,s,h);
+}
+function occFrac(s,hr){let o=0,n=0;for(let i=hr*12;i<hr*12+12;i++){if(s.occLog[i]!=null){n++;o+=s.occLog[i]}}return n?o/n:0}
+function liveChart(hist,col){
+ const W=640,H=150,P={l:44,r:62,t:14,b:22};const max=Math.max(.5,...hist)*1.25;const n=hist.length;
+ const x=i=>P.l+i*(W-P.l-P.r)/(n-1),y=v=>P.t+(H-P.t-P.b)*(1-v/max);
+ const pts=hist.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+ const ticks=[0,max/2,max].map(v=>`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line-2)"/><text x="${P.l-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--ink-2)">${num(v,v<2?1:0)}</text>`).join('');
+ const last=hist[n-1];
+ return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Live power, currently ${num(last,2)} kilowatts">${ticks}
+ <path d="M${pts[0]} L${pts.join(' L')} L${x(n-1)},${y(0)} L${x(0)},${y(0)}z" fill="${col}" opacity=".09"/><polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>
+ <circle cx="${x(n-1)}" cy="${y(last)}" r="4.5" fill="${col}" stroke="#fff" stroke-width="2"/><text x="${x(n-1)+10}" y="${y(last)+4}" font-size="13" font-weight="600" fill="var(--ink)">${num(last,2)} kW</text></svg>`;
+}
+function hourBars(s,h){
+ const W=640,H=170,P={l:44,r:8,t:12,b:24};const vals=s.hourly.map(k=>k*TARIFF);const max=Math.max(20,...vals)*1.15;const bw=(W-P.l-P.r)/24;
+ const y=v=>P.t+(H-P.t-P.b)*(1-v/max);const step=max>200?100:max>80?40:max>40?20:10;
+ let g='';for(let v=0;v<=max;v+=step)g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line-2)"/><text x="${P.l-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--ink-2)">₹${v}</text>`;
+ vals.forEach((v,i)=>{if(i>h)return;const o=occFrac(s,i);const col=v<.2?'var(--line)':o>=.5?'var(--accent)':'var(--bad)';const x=P.l+i*bw+bw*.18;g+=`<rect x="${x}" y="${y(v)}" width="${bw*.64}" height="${Math.max(1,y(0)-y(v))}" rx="2" fill="${col}" opacity="${i===Math.floor(h)?.6:1}"><title>${fmtH(i)}: ${inr(v)}</title></rect>`});
+ [0,6,12,18].forEach(i=>g+=`<text x="${P.l+i*bw+bw/2}" y="${H-6}" text-anchor="middle" font-size="11" fill="var(--ink-2)">${i===0?'12 AM':i===12?'12 PM':i<12?i+' AM':(i-12)+' PM'}</text>`);
+ g+=`<text x="${W-P.r}" y="${H-6}" text-anchor="end" font-size="11" fill="var(--ink-2)">11 PM</text>`;
+ return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cost by hour today">${g}</svg>`;
+}
+function occTrack(r,s,h){
+ const a=7,b=21,pct=x=>((clamp(x,a,b)-a)/(b-a)*100).toFixed(2);let g='<div class="occ"><div class="rail"></div>';
+ if(r.slots)r.slots.forEach(([x,y])=>g+=`<div class="blk" style="left:${pct(x)}%;width:${pct(y)-pct(x)}%" title="Timetable ${fmtH(x)}–${fmtH(y)}"></div>`);
+ let run=null;const flush=(end,kind)=>{if(run!=null){g+=`<div class="${kind}" style="left:${pct(run/12)}%;width:${Math.max(.4,pct(end/12)-pct(run/12))}%"></div>`;run=null}};
+ for(let i=a*12;i<=Math.min(b*12,Math.floor(h*12));i++){const o=s.occLog[i]===1;if(o&&run==null)run=i;if(!o)flush(i,'pres')}flush(Math.min(b*12,Math.floor(h*12)+1),'pres');
+ if(!s.occ&&(anyOn(s)&&!s.cut)&&s.emptySince){const st=Math.max(hourOf(s.emptySince),a);if(new Date(s.emptySince).getDate()===new Date(simNow).getDate()||true)g+=`<div class="waste" style="left:${pct(st)}%;width:${Math.max(.4,pct(h)-pct(st))}%" title="Empty with power on"></div>`}
+ if(h>=a&&h<=b)g+=`<div class="now" style="left:${pct(h)}%"></div>`;
+ g+='</div><div class="occaxis"><span>7 AM</span><span>10 AM</span><span>1 PM</span><span>4 PM</span><span>7 PM</span><span>9 PM</span></div>';
+ g+=`<div class="legend">${r.slots?'<span><i style="background:var(--accent-soft)"></i>Timetable</span>':''}<span><i style="background:var(--accent)"></i>People present</span><span><i style="background:var(--bad)"></i>Empty with power on</span></div>`;
+ return g;
+}
+
+/* ============ alerts ============ */
+let aFilter='open',aSel=null;
+function renderAlerts(){
+ const v=$('#v-alerts');
+ if(!v._built){v.innerHTML=`<div class="pagehead"><div><h1>Alerts</h1><p>Sent to building in-charges on Telegram when a room stays empty with power on for 15 minutes.</p></div><div class="chips" id="aChips"></div></div><div class="alayout"><div class="alist" id="aList"></div><div><div class="phone" id="phone"></div><p class="phonecap" id="phoneCap"></p></div></div>`;v._built=true}
+ const cnt={open:0,ack:0,resolved:0};ALERTS.forEach(a=>cnt[a.status]++);
+ setHTML($('#aChips'),[['open','Open'],['ack','Acknowledged'],['resolved','Resolved'],['all','All']].map(([k,l])=>`<button class="fchip${aFilter===k?' on':''}" data-k="${k}">${l}${k!=='all'?` · ${cnt[k]}`:''}</button>`).join(''));
+ $$('#aChips button').forEach(b=>b.onclick=()=>{aFilter=b.dataset.k;renderAlerts()});
+ const list=ALERTS.filter(a=>aFilter==='all'||a.status===aFilter);
+ if(aSel==null||!ALERTS.find(a=>a.id===aSel))aSel=(list[0]||ALERTS[0]||{}).id;
+ const html=list.length?list.map(a=>{const r=RM[a.room],s=S[a.room];const loss=lossOf(a);
+  const stChip=a.status==='open'?`<span class="chip bad">Open</span>`:a.status==='ack'?`<span class="chip warn">Acknowledged</span>`:`<span class="chip on">Resolved</span>`;
+  return `<div class="arow${a.id===aSel?' sel':''}" data-id="${a.id}"><div class="th">${art(r,0)}</div><div style="min-width:0"><div class="msg">${alertText(a)}</div><div class="sub"><span>${BY[r.b].name}</span><span>${ic('clock',14,2)}${fmtTime(a.at)}</span><span>${ic('send',14,2)}${a.channel} to ${BY[r.b].inc.name}</span>${a.note?`<span>${a.note}</span>`:''}</div></div>
+  <div class="side">${stChip}<span class="loss tnum${a.status!=='resolved'&&a.kind!=='auto'?' bad':''}">${a.kind==='auto'?`Saving ${inr(a.rate)}/hr`:`${inr(loss)} lost${a.status==='resolved'?'':' so far'}`}</span>${a.status!=='resolved'?`<div class="btns">${a.status==='open'?`<button class="btn btn-line btn-sm" data-ack="${a.id}">Acknowledge</button>`:''}${!s.cut&&a.kind==='waste'?`<button class="btn btn-primary btn-sm" data-cut="${a.room}">Turn off</button>`:''}</div>`:''}</div></div>`}).join(''):`<div class="empty"><h3>Nothing here</h3><p>${aFilter==='open'?'No open alerts. Every empty room is switched off.':'No alerts in this list yet.'}</p></div>`;
+ setHTML($('#aList'),html);
+ $$('#aList .arow').forEach(rw=>rw.onclick=e=>{if(e.target.closest('button'))return;aSel=+rw.dataset.id;renderAlerts()});
+ $$('[data-ack]').forEach(b=>b.onclick=()=>{const a=ALERTS.find(x=>x.id===+b.dataset.ack);a.status='ack';a.note=`Acknowledged at ${fmtTime(simNow)}`;refresh()});
+ $$('[data-cut]').forEach(b=>b.onclick=()=>confirmCut(b.dataset.cut));
+ renderPhone();
+}
+function renderPhone(){
+ const a=ALERTS.find(x=>x.id===aSel);if(!a){setHTML($('#phone'),'');return}
+ const r=RM[a.room],b=BY[r.b];const thread=ALERTS.filter(x=>RM[x.room].b===r.b).sort((x,y)=>x.at-y.at);
+ let msgs=`<span class="daytag">Today</span>`;
+ thread.forEach(x=>{const rx=RM[x.room],sx=S[x.room];
+  if(x.kind==='auto')msgs+=`<div class="bubble"><b>${rx.name}</b><br>Empty for ${x.mins} min. Relay cut power automatically. Saving about ${inr(x.rate)}/hr.<time>${fmtTime(x.at)}</time></div>`;
+  else if(x.kind==='spike')msgs+=`<div class="bubble"><b>${rx.name}, ${BY[rx.b].short}</b><br>AC is drawing about 1.8× its usual load with normal occupancy. The compressor may be faulty. Please raise a maintenance ticket.<time>${fmtTime(x.at)}</time></div>`;
+  else{msgs+=`<div class="bubble"><b>${rx.name}, ${BY[rx.b].short}</b><br>${cap(x.items)} on and no one in the room since ${fmtTime(x.from)}. Losing about ${inr(x.rate)}/hr.${x.status==='open'?`<div class="kb">${!sx.cut?`<button data-pcut="${x.room}">Turn off power</button>`:''}<button data-pack="${x.id}">On my way</button></div>`:''}<time>${fmtTime(x.at)}</time></div>`;
+   if(x.status==='ack')msgs+=`<div class="bubble me">On my way<time>${x.note.replace('Acknowledged at ','')}</time></div>`;
+   if(x.status==='resolved')msgs+=`<div class="bubble"><b>Resolved.</b> ${x.note}. About ${inr(lossOf(x))} was lost.<time>${fmtTime(x.resolvedAt)}</time></div>`;}
+ });
+ setHTML($('#phone'),`<div class="pbar"><div class="av">${ic('bolt',18,2)}</div><div><b>${APP.appName} bot</b><small>bot · ${b.inc.tg}</small></div></div><div class="chat" id="chat">${msgs}</div>`);
+ const ch=$('#chat');if(ch)ch.scrollTop=ch.scrollHeight;
+ $$('[data-pcut]').forEach(x=>x.onclick=()=>confirmCut(x.dataset.pcut));
+ $$('[data-pack]').forEach(x=>x.onclick=()=>{const al=ALERTS.find(y=>y.id===+x.dataset.pack);al.status='ack';al.note=`Acknowledged at ${fmtTime(simNow)}`;refresh()});
+ $('#phoneCap').textContent=`What ${b.inc.name} sees on Telegram`;
+}
+
+/* ============ insights (30 days of building-level history) ============ */
+const BCOL={A:'#1F5E4B',B:'#5E9C84',L:'#A9CBBA',Y:'#C9B48A',H:'#8C7663',D:'#CBCBC6'};
+const BORDER=['L','H','A','B','Y','D'];
+const HIST=(()=>{const rr=rng(99);const P={A:[14,118],B:[12,104],L:[20,150],Y:[9,72],H:[42,150],D:[6,58]};
+ const acad=h=>h<7.5||h>18.5?0:h<9?(h-7.5)/1.5*.7:h<13?.9+.1*Math.sin((h-9)/4*Math.PI):h<14?.62:h<17?.95-.1*(h-14)/3:.85*(18.5-h)/1.5;
+ const hst=h=>(h>=6&&h<9?.55:0)+(h>=18?.7+.3*Math.sin((h-18)/6*Math.PI):0)+(h<1.5?.4:0)+(h>=13&&h<14?.3:0);
+ const days=[];for(let d=0;d<30;d++){const date=new Date(2026,9,13-(29-d));const dow=date.getDay();const row={date,dow,b:{}};
+  for(const b of BORDER){const [base,peak]=P[b];row.b[b]=Array.from({length:24},(_,h)=>{const hh=h+.5;let v;
+   if(b==='H')v=base+peak*hst(hh)*(dow===0||dow===6?1.12:1);else if(b==='Y')v=base+peak*(hh>=8&&hh<20?.8+.2*Math.sin((hh-8)/12*Math.PI):0)*(dow===0?.4:1);else v=base+peak*acad(hh)*(dow===0?.22:dow===6?.5:1);
+   return v*(.92+rr()*.16)})}
+  days.push(row)}
+ // the overnight lab incident and an AC fault, so the anomaly notices match the data
+ const sun=days.findIndex((d,i)=>i>20&&d.dow===0);if(sun>=0)for(let h=0;h<7;h++)days[sun].b.L[h]+=7;
+ const thu=days.findIndex((d,i)=>i>22&&d.dow===4);if(thu>=0)for(let h=13;h<17;h++)days[thu].b.A[h]*=1.18;
+ return {days,sun,thu}})();
+const WASTE_SHARE={A:.19,B:.21,L:.16,Y:.09,H:.14,D:.12};
+let iTab='week';
+function nowHour(){return hourOf(simNow)}
+function periodData(tab){
+ const D=HIST.days;const h=Math.floor(nowHour());
+ if(tab==='today'){const t=D[29];return{labels:Array.from({length:24},(_,i)=>i),series:BORDER.map(b=>({b,v:t.b[b].map((x,i)=>i<h?x*TARIFF:i===h?x*TARIFF*(nowHour()-h):null)})),xl:i=>i%6===0?(i===0?'12 AM':i===12?'12 PM':i<12?i+' AM':(i-12)+' PM'):''}}
+ const n=tab==='week'?7:30;const sl=D.slice(30-n);
+ return{labels:sl.map(d=>d.date),series:BORDER.map(b=>({b,v:sl.map((d,k)=>d.b[b].reduce((a,x,i)=>a+(k===n-1&&i>h?0:i===h&&k===n-1?x*(nowHour()-h):x),0)*TARIFF)})),xl:(d,i)=>tab==='week'?DAYS[d.getDay()]:(i%5===4||i===0?`${d.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]}`:'')}
+}
+function stackBars(pd){
+ const W=1100,H=300,P={l:52,r:8,t:12,b:28};const n=pd.labels.length;const tot=pd.labels.map((_,i)=>pd.series.reduce((a,s)=>a+(s.v[i]||0),0));const max=Math.max(...tot)*1.12||1;
+ const y=v=>P.t+(H-P.t-P.b)*(1-v/max);const bw=(W-P.l-P.r)/n;
+ const stepRaw=max/4;const mag=Math.pow(10,Math.floor(Math.log10(stepRaw)));const step=Math.ceil(stepRaw/mag)*mag;
+ let g='';for(let v=0;v<=max;v+=step)g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line-2)"/><text x="${P.l-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--ink-2)">${short(v)}</text>`;
+ pd.labels.forEach((l,i)=>{let acc=0;const x=P.l+i*bw+bw*.16,w=bw*.68;
+  pd.series.forEach(s=>{const v=s.v[i];if(!v)return;g+=`<rect x="${x}" y="${y(acc+v)}" width="${w}" height="${Math.max(0,y(acc)-y(acc+v)-(acc?1:0))}" fill="${BCOL[s.b]}"><title>${BY[s.b].name}: ${inr(v)}</title></rect>`;acc+=v});
+  if(tot[i]===0)g+=`<rect x="${x}" y="${y(max*.02)}" width="${w}" height="${y(0)-y(max*.02)}" fill="var(--surface)"/>`;
+  const lab=pd.xl(l,i);if(lab)g+=`<text x="${P.l+i*bw+bw/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--ink-2)">${lab}</text>`});
+ return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Electricity cost by building">${g}</svg>`;
+}
+function heatmap(){
+ const D=HIST.days.slice(23);const h=Math.floor(nowHour());const vals=D.map((d,k)=>Array.from({length:24},(_,i)=>k===6&&i>=h?null:BORDER.reduce((a,b)=>a+d.b[b][i],0)));
+ const flat=vals.flat().filter(v=>v!=null);const mn=Math.min(...flat),mx=Math.max(...flat);
+ const W=680,cw=(W-44)/24,ch=24,H=7*ch+28;let g='';
+ const mix=t=>{const a=[241,241,238],b=[11,110,79];return `rgb(${a.map((x,i)=>Math.round(x+(b[i]-x)*t)).join(',')})`};
+ vals.forEach((row,k)=>{g+=`<text x="34" y="${k*ch+ch/2+4}" text-anchor="end" font-size="11" fill="var(--ink-2)">${DAYS[D[k].date.getDay()]}</text>`;row.forEach((v,i)=>{g+=`<rect x="${44+i*cw+1}" y="${k*ch+1}" width="${cw-2}" height="${ch-2}" rx="3" fill="${v==null?'var(--surface)':mix(Math.pow((v-mn)/(mx-mn),1.2))}"><title>${DAYS[D[k].date.getDay()]} ${fmtH(i)}: ${v==null?'not yet':num(v)+' kW'}</title></rect>`})});
+ [0,6,12,18].forEach(i=>g+=`<text x="${44+i*cw+cw/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--ink-2)">${i===0?'12 AM':i===12?'12 PM':i<12?i+' AM':(i-12)+' PM'}</text>`);
+ // find peak hour on weekdays
+ const avg=Array.from({length:24},(_,i)=>{const r=D.filter(d=>d.dow>0&&d.dow<6).map(d=>BORDER.reduce((a,b)=>a+d.b[b][i],0));return r.reduce((a,b)=>a+b,0)/r.length});const pk=avg.indexOf(Math.max(...avg));
+ return {svg:`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Campus load by hour and day">${g}</svg>`,pk,pkv:avg[pk]};
+}
+function forecast(){
+ const D=HIST.days;const wed=D.filter(d=>d.dow===3);const h=nowHour();
+ const fc=Array.from({length:24},(_,i)=>wed.reduce((a,d)=>a+BORDER.reduce((x,b)=>x+d.b[b][i],0),0)/wed.length*1.03);
+ const act=Array.from({length:24},(_,i)=>i<=Math.floor(h)?BORDER.reduce((x,b)=>x+D[29].b[b][i],0):null);
+ const W=680,H=250,P={l:52,r:12,t:16,b:28};const max=Math.max(...fc)*1.25;const x=i=>P.l+i*(W-P.l-P.r)/23,y=v=>P.t+(H-P.t-P.b)*(1-v/max);
+ let g='';for(let v=0;v<=max;v+=200)g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line-2)"/><text x="${P.l-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--ink-2)">${v} kW</text>`;
+ const up=fc.map((v,i)=>`${x(i)},${y(v*1.09)}`),lo=fc.map((v,i)=>`${x(i)},${y(v*.91)}`).reverse();
+ g+=`<path d="M${up.join(' L')} L${lo.join(' L')}z" fill="var(--accent)" opacity=".1"/>`;
+ g+=`<polyline points="${fc.map((v,i)=>`${x(i)},${y(v)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
+ const ap=act.map((v,i)=>v==null?null:`${x(i)},${y(v)}`).filter(Boolean);
+ g+=`<polyline points="${ap.join(' ')}" fill="none" stroke="var(--ink-2)" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+ const pk=fc.indexOf(Math.max(...fc));g+=`<circle cx="${x(pk)}" cy="${y(fc[pk])}" r="4.5" fill="var(--accent)" stroke="#fff" stroke-width="2"/><text x="${x(pk)+8}" y="${y(fc[pk])-8}" font-size="12" font-weight="600" fill="var(--ink)">Peak ${num(fc[pk])} kW</text>`;
+ [0,6,12,18,23].forEach(i=>g+=`<text x="${x(i)}" y="${H-8}" text-anchor="${i===0?'start':i===23?'end':'middle'}" font-size="11" fill="var(--ink-2)">${i===0?'12 AM':i===12?'12 PM':i===23?'11 PM':i<12?i+' AM':(i-12)+' PM'}</text>`);
+ const todayPk=Math.max(...D[29].b.A.map((_,i)=>BORDER.reduce((s,b)=>s+D[29].b[b][i],0)));
+ return {svg:`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tomorrow's forecast load">${g}</svg>`,pk,pv:fc[pk],kwh:fc.reduce((a,b)=>a+b,0),diff:(fc[pk]/todayPk-1)*100};
+}
+function renderInsights(){
+ const v=$('#v-insights');const pd=periodData(iTab);
+ const tot=pd.series.reduce((a,s)=>a+s.v.reduce((x,y)=>x+(y||0),0),0);const save=pd.series.reduce((a,s)=>a+s.v.reduce((x,y)=>x+(y||0),0)*WASTE_SHARE[s.b],0);
+ const byB=pd.series.map(s=>({b:s.b,v:s.v.reduce((x,y)=>x+(y||0),0)})).sort((a,b)=>b.v-a.v);const top2=(byB[0].v+byB[1].v)/tot*100;
+ const hm=heatmap(),fc=forecast();const per={today:'today so far',week:'in the last 7 days',month:'in the last 30 days'}[iTab];
+ const D=HIST.days;const wasteRooms=ROOMS.map(r=>[`${r.name}, ${BY[r.b].short}`,loadRaw(r,FULL(r),14)*TARIFF*(2+(hashStr(r.id)%100)/100*6)*(iTab==='today'?.15:iTab==='month'?4.1:1)]).sort((a,b)=>b[1]-a[1]).slice(0,7);const wmax=wasteRooms.length?wasteRooms[0][1]:1;const nm=(id,f)=>RM[id]?RM[id].name:f;
+ const anomalies=[];
+ ALERTS.filter(a=>a.kind==='spike').forEach(a=>anomalies.push({bad:true,t:`${RM[a.room].name} AC is drawing about 1.8× its usual load with normal occupancy. The compressor may be faulty.`,w:`Today, ${fmtTime(a.at)}`}));
+ anomalies.push({bad:true,t:`${nm('L-3','A computer lab')} drew 7 kW from midnight to 7 AM on Sunday. PCs and lights were likely left on after Saturday's lab.`,w:D[HIST.sun].date.toDateString().slice(0,10)});
+ anomalies.push({t:`${nm('A-204','The Block A seminar hall')} used 18% more in the afternoon than on other ${DAYS[D[HIST.thu].date.getDay()]}days, with the same timetable.`,w:D[HIST.thu].date.toDateString().slice(0,10)});
+ anomalies.push({t:`Kaveri Hostel load rises 12% on weekend nights. Mostly the common room TV and water cooler.`,w:'Every weekend'});
+ v.innerHTML=`<div class="pagehead"><div><h1>Insights</h1><p>Whole-campus metering from the six building feeders. Room-level data comes from the sensor nodes.</p></div></div>
+ <div class="tabs" role="tablist">${[['today','Today'],['week','This week'],['month','This month']].map(([k,l])=>`<button class="tab${iTab===k?' on':''}" data-k="${k}" role="tab" aria-selected="${iTab===k}">${l}</button>`).join('')}</div>
+ <div class="bigs"><div class="big"><b class="tnum">${inr(tot)}</b><span>spent ${per}</span></div><div class="vr"></div><div class="big"><b class="tnum bad">${inr(save)}</b><span>could have been saved (${num(save/tot*100,0)}%)</span></div><div class="vr"></div><div class="big"><b class="tnum">${num(tot/TARIFF*CO2)} kg</b><span>CO₂ from ${num(tot/TARIFF)} kWh</span></div></div>
+ <div class="panels">
+  <div class="panel full"><h3>Cost by building</h3><p class="take">${BY[byB[0].b].name} and ${BY[byB[1].b].name} account for ${num(top2)}% of the bill ${per}.</p><div class="chartbox">${stackBars(pd)}</div><div class="legend">${BORDER.map(b=>`<span><i style="background:${BCOL[b]}"></i>${BY[b].name}</span>`).join('')}</div></div>
+  <div class="panel"><h3>Peak hours, last 7 days</h3><p class="take">On weekdays the campus peaks around ${fmtH(hm.pk)} at about ${num(hm.pkv)} kW. Darker cells mean more load.</p><div class="chartbox">${hm.svg}</div></div>
+  <div class="panel"><h3>Tomorrow's forecast</h3><p class="take">Wednesday should peak at about ${num(fc.pv)} kW around ${fmtH(fc.pk)}, ${num(Math.abs(fc.diff))}% ${fc.diff>=0?'above':'below'} today. Pre-cooling Block B before 10 AM would trim about ₹1,200 off the peak.</p><div class="chartbox">${fc.svg}</div><div class="legend"><span><i style="background:var(--accent)"></i>Forecast</span><span><i style="background:var(--accent);opacity:.2"></i>Likely range</span><span><i style="background:var(--ink-2);height:2px"></i>Today so far</span></div><p class="muted" style="font-size:13px;margin-top:10px">Based on the last four Wednesdays, tomorrow's timetable and a forecast high of 29°C.</p></div>
+  <div class="panel"><h3>Unusual readings</h3><p class="take">Flagged when a building or room uses much more than its own usual for that hour.</p>${anomalies.map(a=>`<div class="notice"><div class="ic${a.bad?' bad':''}">${ic('alert',18,2)}</div><p>${a.t}</p><small>${a.w}</small></div>`).join('')}</div>
+  <div class="panel"><h3>Rooms losing the most</h3><p class="take">Money spent while the room was empty, ${per}.</p>${wasteRooms.length?'':'<p class="muted">Add rooms to see which ones lose the most.</p>'}${wasteRooms.map(([n,val])=>`<div class="rank"><span class="nm">${n}</span><span class="bar"><i style="width:${val/wmax*100}%"></i></span><b class="tnum">${inr(val)}</b></div>`).join('')}</div>
+ </div>`;
+ $$('.tab',v).forEach(t=>t.onclick=()=>{iTab=t.dataset.k;renderInsights()});
+}
+
+/* ============ planner ============ */
+const PL={delay:10,set:24,auto:true,autoMin:20,cov:100};
+function monthBill(){return HIST.days.reduce((a,d)=>a+BORDER.reduce((x,b)=>x+d.b[b].reduce((p,q)=>p+q,0),0),0)*TARIFF}
+function renderPlanner(){
+ const v=$('#v-planner');
+ v.innerHTML=`<div class="pagehead"><div><h1>What-if planner</h1><p>Change the rules and see what the campus would save each month.</p></div></div>
+ <div class="planner"><div>
+  <div class="ctrl"><div class="lab"><b>Switch off ACs after class</b><output id="oDelay"></output></div><p>How long after the last class an empty room keeps its AC and lights on.</p><input type="range" id="pDelay" min="0" max="60" step="5" value="${PL.delay}"><div class="ticks"><span>Right away</span><span>30 min</span><span>1 hour</span></div></div>
+  <div class="ctrl"><div class="lab"><b>AC temperature</b><output id="oSet"></output></div><p>Every degree warmer saves about 6% of AC power. Most rooms are set to 22°C today.</p><input type="range" id="pSet" min="20" max="26" step="1" value="${PL.set}"><div class="ticks"><span>20°C</span><span>23°C</span><span>26°C</span></div></div>
+  <div class="ctrl"><div class="switchrow" style="padding:0"><div><b style="font-size:17px">Automatic shutoff</b><small>The relay cuts power when a room has been empty for a while.</small></div><label class="sw"><input type="checkbox" id="pAuto" ${PL.auto?'checked':''}><span></span></label></div><div id="autoBox" style="margin-top:16px"><div class="lab"><span class="muted">Cut power after</span><output id="oAuto"></output></div><input type="range" id="pAutoMin" min="10" max="60" step="5" value="${PL.autoMin}"></div></div>
+  <div class="ctrl"><div class="lab"><b>Rooms with sensor nodes</b><output id="oCov"></output></div><p>The campus has 420 classrooms, labs and offices. Start with the worst buildings and grow from there.</p><input type="range" id="pCov" min="10" max="100" step="5" value="${PL.cov}"><div class="ticks"><span>10%</span><span>50%</span><span>All 420 rooms</span></div></div>
+  <div class="assume"><b>How we estimate this</b><ul><li>Monthly bill of ${inr(monthBill())}, from the last 30 days of feeder data.</li><li>Rooms stay powered about 70 minutes after class on average. That is about 4.5% of the bill.</li><li>Rooms forgotten overnight or over weekends cost about 2.5% of the bill.</li><li>ACs are 38% of the bill. Hardware is ₹800 a room plus ₹2,500 per gateway for every 40 rooms.</li></ul></div>
+ </div>
+ <div class="stick" style="padding-top:0"><div class="rcard est" id="est"></div></div></div>`;
+ const bind=(id,k,f=Number)=>{$(id).oninput=e=>{PL[k]=f(e.target.value);calcPlan()}};
+ bind('#pDelay','delay');bind('#pSet','set');bind('#pAutoMin','autoMin');bind('#pCov','cov');
+ $('#pAuto').onchange=e=>{PL.auto=e.target.checked;calcPlan()};
+ calcPlan();
+}
+function tween(el,to,fmt){const from=el._v??to;el._v=to;const t0=performance.now();const d=280;const run=t=>{const k=Math.min(1,(t-t0)/d);const e=1-Math.pow(1-k,3);el.textContent=fmt(from+(to-from)*e);if(k<1)requestAnimationFrame(run)};requestAnimationFrame(run)}
+function calcPlan(){
+ const bill=monthBill(),cov=PL.cov/100,rooms=Math.round(420*cov);
+ const idle=bill*.045*cov*Math.max(0,(70-PL.delay)/70);
+ const forgot=PL.auto?bill*.025*cov*(1-PL.autoMin/240):0;
+ const ac=bill*.38*.025*(PL.set-22)*cov;
+ const save=idle+forgot+ac;const hw=rooms*800+Math.ceil(rooms/40)*2500;const pay=save>0?hw/save:Infinity;
+ const co2=save/TARIFF*CO2;const trees=co2*12/21;
+ $('#oDelay').textContent=PL.delay===0?'Right away':`${PL.delay} min`;$('#oSet').textContent=`${PL.set}°C`;$('#oAuto').textContent=`${PL.autoMin} min`;$('#oCov').textContent=`${PL.cov}% · ${rooms} rooms`;
+ $('#autoBox').style.opacity=PL.auto?1:.4;$('#pAutoMin').disabled=!PL.auto;
+ const e=$('#est');
+ if(!e._built){e.innerHTML=`<p class="muted">Estimated saving</p><div class="hero tnum"><span id="eSave"></span><span class="muted" style="font-size:18px;font-weight:500"> /month</span></div>
+  <div class="lines"><div><span>CO₂ avoided</span><b class="tnum" id="eCo2"></b></div><div><span>A year of that equals</span><b class="tnum" id="eTree"></b></div><div><span>Hardware cost</span><b class="tnum" id="eHw"></b></div><div><span>Pays for itself in</span><b class="tnum" id="ePay"></b></div></div>
+  <div class="bb"><div class="r"><span>Now</span><div><i id="bNow" style="background:var(--ink-3)"></i></div><b class="tnum" id="vNow"></b></div><div class="r"><span>After</span><div><i id="bAft" style="background:var(--accent)"></i></div><b class="tnum" id="vAft"></b></div></div>
+  <p class="muted" style="font-size:13px;margin-top:14px" id="eSplit"></p>`;e._built=true}
+ tween($('#eSave'),save,v=>inr(v));tween($('#eCo2'),co2,v=>num(v)+' kg');tween($('#eTree'),trees,v=>num(v)+' trees');$('#eHw').textContent=inr(hw);
+ $('#ePay').textContent=pay===Infinity||pay>99?'Never at these settings':pay<1?'Under a month':`${num(pay,1)} months`;
+ $('#bNow').style.width='100%';$('#bAft').style.width=(clamp((bill-save)/bill,0,1.2)*100/1.0)+'%';$('#vNow').textContent=short(bill);$('#vAft').textContent=short(bill-save);
+ $('#eSplit').textContent=`After-class switch-off ${inr(idle)}, automatic shutoff ${inr(forgot)}, AC temperature ${ac>=0?inr(ac):'−'+inr(-ac)}.`;
+}
+
+/* ============ hostels ============ */
+const HOSTELS0=[
+ {n:'Kaveri',w:'Mr. Prakash Naik',res:412,saved:14.2,kwh:9.8,tr:2.1,st:3,lit:.55},
+ {n:'Hemavathi',w:'Ms. Shobha Bhat',res:368,saved:12.8,kwh:9.1,tr:3.4,st:2,lit:.5},
+ {n:'Tunga',w:'Mr. Girish Patil',res:455,saved:11.5,kwh:10.6,tr:-.8,st:4,lit:.6},
+ {n:'Nethravathi',w:'Ms. Roopa Desai',res:320,saved:9.4,kwh:10.2,tr:1.2,st:0,lit:.58},
+ {n:'Sharavathi',w:'Mr. Manjunath S.',res:390,saved:7.9,kwh:11.4,tr:-1.5,st:0,lit:.66},
+ {n:'Kabini',w:'Mr. Arvind Rao',res:280,saved:5.1,kwh:12.3,tr:.6,st:0,lit:.7},
+];
+let HOSTELS=HOSTELS0.map(h=>({...h}));
+let week=42;
+function renderHostels(){
+ const v=$('#v-hostels');
+ if(!v._built){v.innerHTML=`<div class="pagehead"><div><h1>Hostel challenge</h1><p id="wkLine"></p></div><button class="btn btn-line" id="nextWeek">See next week's results</button></div>
+  <div class="lhead"><span>#</span><span></span><span>Hostel</span><span>Saved vs its own baseline</span><span>Change</span><span>Per resident</span></div><div class="lb" id="lb"></div>
+  <div class="rules"><div><h3>Fair for every hostel</h3><p>Each hostel is compared with its own average from the last four weeks, so a small hostel and a big one compete on equal terms.</p></div><div><h3>Announced every Monday</h3><p>Results go to each hostel's Telegram group and the notice board at 9 AM. The top three get their names on the mess board.</p></div><div><h3>What counts</h3><p>Only common areas, corridors and study rooms are metered. Students' own rooms are never measured.</p></div></div>`;v._built=true;
+  $('#nextWeek').onclick=nextWeek}
+ const ws=new Date(2026,9,6+(week-42)*7),we=new Date(2026,9,12+(week-42)*7),mn=d=>d.toLocaleString('en-IN',{month:'long'});$('#wkLine').textContent=`Week ${week} · ${ws.getDate()} ${mn(ws)} to ${we.getDate()} ${mn(we)}. Ranked by how much each hostel cut its electricity use.`;
+ const lb=$('#lb');const first=new Map($$('.lrow',lb).map(e=>[e.dataset.n,e.getBoundingClientRect().top]));
+ HOSTELS.sort((a,b)=>b.saved-a.saved);
+ const mx=Math.max(...HOSTELS.map(h=>h.saved));
+ lb.innerHTML=HOSTELS.map((h,i)=>`<div class="lrow" data-n="${h.n}"><span class="rk">${i+1}</span><div class="th">${facade(hashStr(h.n),h.lit)}</div><div style="min-width:0"><h3>${h.n} Hostel ${i<3?`<span class="medal">${['1st','2nd','3rd'][i]} this week</span>`:''}</h3><p class="sub">${h.res} residents · Warden ${h.w}${h.st>1?` · ${h.st}-week top-3 streak`:''}</p></div><div><span class="pct tnum">${num(h.saved,1)}% less</span><div class="pbar"><i style="width:${h.saved/mx*100}%"></i></div></div><span class="tr ${h.tr>=0?'up':'down'}">${ic(h.tr>=0?'up':'down',14,2.2)}${num(Math.abs(h.tr),1)} pts</span><span class="kwh"><b class="tnum">${num(h.kwh,1)} kWh</b>a week</span></div>`).join('');
+ // slide rows from their old place to the new one
+ $$('.lrow',lb).forEach(e=>{const o=first.get(e.dataset.n);if(o==null)return;const d=o-e.getBoundingClientRect().top;if(!d)return;e.animate([{transform:`translateY(${d}px)`},{transform:'none'}],{duration:450,easing:'cubic-bezier(.2,0,0,1)'})});
+}
+function nextWeek(){if(week>=46){week=42;HOSTELS=HOSTELS0.map(h=>({...h}));renderHostels();$('#nextWeek').textContent="See next week's results";return}const rr=rng(week*31);const prevTop=HOSTELS.slice(0,3).map(h=>h.n);HOSTELS.forEach(h=>{const d=(rr()-.42)*5.5;h.saved=clamp(h.saved+d,1,25);h.tr=d;h.kwh=clamp(h.kwh-d*.08,8,14)});HOSTELS.sort((a,b)=>b.saved-a.saved);HOSTELS.forEach((h,i)=>{h.st=i<3?(prevTop.includes(h.n)?h.st+1:1):0});week++;renderHostels();$('#nextWeek').textContent=week>=46?'Back to week 42':"See next week's results";}
+
+/* ============ demo controls ============ */
+function renderDemo(){
+ const d=$('#demo');
+ d.innerHTML=`<h3>Presenter controls<button class="iconbtn" style="width:30px;height:30px" id="dClose" aria-label="Close">${ic('x',14,2)}</button></h3>
+ <h4>Speed of time</h4><div class="sb">${[1,10,60].map(x=>`<button data-sp="${x}" class="${speed===x?'on':''}">${x}×</button>`).join('')}</div>
+ <h4>Scenarios</h4><div class="sc">
+  ${RM['B-205']?`<button data-sc="b205">Leave ${RM['B-205'].name} empty with lights and fans on<small>Alert fires 15 simulated minutes later</small></button>`:''}
+  ${RM['L-3']?`<button data-sc="lab3">${RM['L-3'].name} left on overnight<small>PCs, lights and ACs since 9 PM</small></button>`:''}
+  ${RM['A-204']?`<button data-sc="spike">Faulty AC in ${RM['A-204'].name}<small>Load jumps to 1.8× with people in the room</small></button>`:''}
+  <button data-sc="hour">Skip ahead one hour</button>
+  <button data-sc="eve">Skip to 7:30 PM, hostel evening peak</button>
+ </div>
+ <h4>Automatic shutoff</h4><div class="switchrow"><div style="font-size:13px">Cut power after <select id="dMin">${[10,15,20,30].map(m=>`<option ${m===autoMin?'selected':''} value="${m}">${m} min</option>`).join('')}</select> empty</div><label class="sw"><input type="checkbox" id="dAuto" ${autoOff?'checked':''}><span></span></label></div>
+ <p class="muted" style="font-size:12px;margin-top:8px">Press D to show or hide. All data on this page is simulated.</p>`;
+ $('#dClose').onclick=()=>{d.hidden=true};
+ $$('[data-sp]',d).forEach(b=>b.onclick=()=>{speed=+b.dataset.sp;renderDemo();refresh()});
+ $('#dAuto').onchange=e=>{autoOff=e.target.checked};$('#dMin').onchange=e=>{autoMin=+e.target.value};
+ $$('[data-sc]',d).forEach(b=>b.onclick=()=>scenario(b.dataset.sc));
+}
+function scenario(k){
+ const h=hourOf(simNow);const need={b205:'B-205',lab3:'L-3',spike:'A-204'}[k];if(need&&!RM[need])return;
+ if(k==='b205'){const s=S['B-205'],r=RM['B-205'];s.occ=false;s.cut=false;s.L=s.F=true;s.A=false;s.E=true;s.emptySince=simNow;s.lastMotion=simNow;s.forceEmptyUntil=simNow+90*60000;s.pinned=true;s.alerted=false;s.kw=loadOf(r,s,h);toast({title:`${r.name} is now empty with lights and fans on`,sub:speed===1?'Switch to 10× or 60× to see the alert sooner.':'Watch for the Telegram alert.',room:'B-205'});}
+ if(k==='lab3'){const s=S['L-3'],r=RM['L-3'];s.occ=false;s.cut=false;s.L=s.E=s.A=true;s.emptySince=simNow-(h>=21?(h-21):(h+3))*3600000;s.lastMotion=s.emptySince;s.forceEmptyUntil=simNow+60*60000;s.pinned=true;s.alerted=false;s.kw=loadOf(r,s,h);checkAlerts();}
+ if(k==='spike'){const s=S['A-204'],r=RM['A-204'];s.spikeUntil=simNow+90*60000;if(!s.occ){s.occ=true;fullOn(r,s);s.forceEmptyUntil=0}const a=newAlert(r,'spike',{rate:r.ac*1.6*.8*TARIFF,status:'open',from:simNow});toast({title:`${r.name}: AC drawing about 1.8× its usual load`,sub:'Unusual reading flagged. Sent to Prof. Suresh Hegde.',room:'A-204',bad:true});}
+ if(k==='hour')fastForward(simNow+3600000);
+ if(k==='eve'){const t=new Date(simNow);t.setHours(19,30,0,0);if(t.getTime()<=simNow)t.setDate(t.getDate()+1);fastForward(t.getTime())}
+ refresh();
+}
+function fastForward(target){quiet=true;while(simNow<target)advance(Math.min(60,(target-simNow)/1000));quiet=false;const n=ALERTS.filter(a=>a.status==='open').length;toast({title:`Jumped to ${fmtTime(simNow)}`,sub:`${n} open alert${n===1?'':'s'}.`,small:true})}
+
+/* ============ your campus: rooms, names, saved to the page's store ============ */
+const APP={appName:'WattWatch',campusName:'',ownerName:'Facilities office'};
+const DEFAULT_BNAMES=Object.fromEntries(BUILDINGS.map(b=>[b.id,[b.name,b.short]]));
+const store={mode:'loading',db:null,canEdit:true,warned:false};
+const clean=(v,max)=>String(v??'').replace(/[<>&"`]/g,'').replace(/\s+/g,' ').trim().slice(0,max);
+const hm=x=>`${Math.floor(x)}:${String(Math.round((x%1)*60)).padStart(2,'0')}`;
+function initials(n){const w=clean(n,60).replace(/^(Dr|Prof|Mr|Ms|Mrs)\.?\s+/i,'').split(' ').filter(Boolean);return ((w[0]||'?')[0]+((w[1]||'')[0]||'')).toUpperCase()}
+function roomToDoc(r){return {id:r.id,name:r.name,b:r.b,type:r.type,floor:+r.floor||0,seats:+r.seats||0,lights:+r.lights||0,fans:+r.fans||0,ac:+r.ac||0,equip:+r.equip||0,slots:(r.slots||[]).map(([s,e])=>({s,e})),order:+r.order||0}}
+function docToRoom(d){
+ const type=TYPE_LABEL[d.type]?d.type:'class';
+ const sl=Array.isArray(d.slots)?d.slots.filter(x=>x&&isFinite(x.s)&&isFinite(x.e)&&+x.e>+x.s).map(x=>[+x.s,+x.e]):[];
+ return {id:String(d.id),name:clean(d.name,60)||'Untitled room',b:BY[d.b]?d.b:'A',type,floor:clamp(Math.round(+d.floor||0),0,30),seats:clamp(Math.round(+d.seats||0),0,2000),
+  lights:clamp(Math.round(+d.lights||0),0,200),fans:clamp(Math.round(+d.fans||0),0,100),ac:clamp(Math.round(+d.ac||0),0,20),equip:clamp(+d.equip||0,0,50),
+  slots:sl.length?sl:(['class','lab','seminar'].includes(type)?[]:undefined),order:+d.order||0};
+}
+function applyRooms(list){
+ list=list.slice().sort((a,b)=>(a.order-b.order)||a.name.localeCompare(b.name));
+ ROOMS.length=0;list.forEach(r=>ROOMS.push(r));RM=Object.fromEntries(ROOMS.map(r=>[r.id,r]));
+ ROOMS.forEach(r=>{if(!S[r.id])S[r.id]=freshState(r)});
+ for(let i=ALERTS.length-1;i>=0;i--)if(!RM[ALERTS[i].room])ALERTS.splice(i,1);
+ buildCards();updateCards();updateMap();updateSummary();applyFilters();refreshEditUI();
+ if(curView==='room'){if(!RM[curRoom])location.hash='explore';else renderRoom(curRoom)}
+ if(curView==='alerts')renderAlerts();
+ if(curView==='insights')renderInsights();
+ if(!$('#demo').hidden)renderDemo();
+ refreshManage();
+}
+function applySettings(s){
+ APP.appName=clean(s.appName,32)||'WattWatch';APP.campusName=clean(s.campusName,80);APP.ownerName=clean(s.ownerName,60)||'Facilities office';
+ const bn=s.buildings||{};BUILDINGS.forEach(b=>{const n=clean(bn[b.id],40);b.name=n||DEFAULT_BNAMES[b.id][0];b.short=n||DEFAULT_BNAMES[b.id][1]});
+ $('#logoName').textContent=APP.appName;$('.logo').setAttribute('aria-label',APP.appName+' home');$('#footName').textContent=APP.appName;$('#builtBy').textContent=APP.ownerName;
+ $('#avatarBtn span').textContent=initials(APP.ownerName);$('#avatarBtn').setAttribute('aria-label',APP.ownerName+' menu');
+ document.title=curView==='room'&&RM[curRoom]?`${RM[curRoom].name} · ${APP.appName}`:APP.appName;
+ buildMap();applyRooms(ROOMS.slice());
+}
+function refreshEditUI(){$$('[data-edit]').forEach(e=>e.hidden=!store.canEdit)}
+function setLoading(){
+ store.mode='loading';for(const k in cards)delete cards[k];
+ $('#grid').innerHTML=Array.from({length:6},()=>`<div><div class="skel" style="aspect-ratio:20/19"></div><div class="skel" style="height:14px;margin-top:14px;width:70%"></div><div class="skel" style="height:12px;margin-top:8px;width:50%"></div></div>`).join('');
+ const sm=$('#summary');sm.innerHTML='<span class="muted">Loading your rooms…</span>';sm._h=null;
+}
+function goLocal(){store.mode='local';applyRooms(ROOMS.slice())}
+const LS={get(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}}};
+function loadLocal(){const st=LS.get('wattwatch.settings');const rs=LS.get('wattwatch.rooms');if(st)applySettings(st);if(Array.isArray(rs))applyRooms(rs.map(docToRoom))}
+function persistLocal(){return LS.set('wattwatch.rooms',ROOMS.map(roomToDoc))}
+async function initStore(){
+ if(!window.claude||typeof window.claude.use!=='function'){store.mode='local';loadLocal();return}
+ setLoading();
+ let db=null;try{db=await window.claude.use('db')}catch(e){}
+ if(!db){goLocal();return}
+ store.db=db;store.mode='db';
+ try{const u=await window.claude.use('user');if(u&&typeof u.canEdit==='function'){const ce=await u.canEdit();if(ce===false)store.canEdit=false}}catch(e){}
+ try{db.doc('settings/campus').onSnapshot(sn=>{if(sn.exists)applySettings(sn.data()||{})},()=>{})}catch(e){}
+ try{db.collection('rooms').onSnapshot(sn=>{applyRooms(sn.docs.filter(d=>d.exists).map(d=>docToRoom({...d.data(),id:d.id})))},()=>{toast({title:'Could not load your saved rooms',sub:'Showing the sample campus for now.',small:true});goLocal()})}catch(e){goLocal()}
+}
+function localNote(){const ok=persistLocal();if(store.mode!=='db'&&!store.warned){store.warned=true;toast({title:ok?'Saved in this browser':'Changed in this tab only',sub:ok?'Clear site data to go back to the sample campus.':'This browser is not letting the page save.',small:true})}}
+async function dbDo(fn){
+ try{await fn();return true}catch(e){const c=e&&e.code;
+  if(c==='invalid_argument'||c==='not_granted'){store.canEdit=false;refreshEditUI();toast({title:'This page is view only for you',sub:'Ask the owner for Editor access to change rooms.',small:true})}
+  else if(c==='quota_exceeded')toast({title:'Storage is full',sub:'Remove a few rooms, then try again.',small:true});
+  else toast({title:'Could not save',sub:'Check your connection and try again.',small:true});
+  return false}
+}
+async function saveRoom(r){
+ if(store.mode==='db')return dbDo(()=>store.db.doc('rooms/'+r.id).set(roomToDoc(r)));
+ const list=ROOMS.slice(),i=list.findIndex(x=>x.id===r.id);if(i>=0)list[i]=r;else list.push(r);applyRooms(list);localNote();return true;
+}
+async function removeRoom(id){
+ if(store.mode==='db')return dbDo(()=>store.db.doc('rooms/'+id).delete());
+ applyRooms(ROOMS.filter(r=>r.id!==id));localNote();return true;
+}
+async function saveSettings(s){
+ if(store.mode==='db')return dbDo(()=>store.db.doc('settings/campus').set(s));
+ applySettings(s);LS.set('wattwatch.settings',s);localNote();return true;
+}
+async function restoreSample(){
+ const defs=DEFAULT_ROOMS.map((r,i)=>({...cloneRoom(r),order:i}));
+ if(store.mode==='db'){
+  const ok=await dbDo(async()=>{for(const r of ROOMS)if(!DEFAULT_ROOMS.some(d=>d.id===r.id))await store.db.doc('rooms/'+r.id).delete();for(const r of defs)await store.db.doc('rooms/'+r.id).set(roomToDoc(r))});
+  if(ok)toast({title:'Sample rooms restored',sub:`${defs.length} rooms across six buildings.`,small:true});return;
+ }
+ applyRooms(defs);localNote();
+}
+function newId(b,name){const base=(b+'-'+clean(name,40).toUpperCase().replace(/[^A-Z0-9]/g,'')).slice(0,14)||b+'-ROOM';let id=base,n=2;while(RM[id])id=base+'-'+(n++);return id}
+function parseSlots(txt){
+ const out=[];const parts=txt.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean);
+ const tm=(hh,mm,ap)=>{let x=+hh+(+mm||0)/60;if(ap){ap=ap.toLowerCase();if(ap==='pm'&&x<12)x+=12;if(ap==='am'&&x>=12)x-=12}else if(x<8)x+=12;return x};
+ for(const p of parts){const m=p.match(/^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\s*(?:-|–|to)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?$/i);
+  if(!m)return {error:`“${p}” is not a time range. Write it like 9:00-10:00.`};
+  const startAp=m[3]||(m[6]&&+m[1]<=+m[4]?m[6]:null);
+  const a=tm(m[1],m[2],startAp),b=tm(m[4],m[5],m[6]);
+  if(!(b>a)||a<0||b>24)return {error:`“${p}” ends before it starts.`};out.push([a,b])}
+ return {slots:out.sort((x,y)=>x[0]-y[0])};
+}
+
+/* forms */
+function field(id,label,input,hint=''){return `<label class="field" id="f-${id}"><span>${label}</span>${input}${hint?`<small>${hint}</small>`:''}</label>`}
+function roomForm(id,back){
+ if(!store.canEdit)return;
+ const ex=id?RM[id]:null;
+ const r=ex||{name:'',b:F.b||'B',type:'class',floor:1,seats:60,lights:8,fans:4,ac:0,equip:.25,slots:[[9,10],[14,15]]};
+ const num=(k,v,step=1,max=999)=>`<input type="number" id="rf-${k}" min="0" max="${max}" step="${step}" value="${v}" inputmode="decimal">`;
+ const body=`<form class="form" id="roomFormEl" novalidate>
+  ${field('name','Room name',`<input id="rf-name" maxlength="60" value="${ex?r.name:''}" placeholder="For example, Room 105 or Physics Lab" autocomplete="off">`)}
+  <div class="cols2">${field('b','Building',`<select id="rf-b">${BUILDINGS.map(b=>`<option value="${b.id}" ${b.id===r.b?'selected':''}>${b.name}</option>`).join('')}</select>`)}
+  ${field('type','Room type',`<select id="rf-type">${Object.entries(TYPE_LABEL).map(([k,l])=>`<option value="${k}" ${k===r.type?'selected':''}>${l}</option>`).join('')}</select>`)}</div>
+  <div class="cols2">${field('floor','Floor',num('floor',r.floor,1,30),'0 is the ground floor')}${field('seats','Seats',num('seats',r.seats,1,2000))}</div>
+  <div class="cols4">${field('lights','Lights',num('lights',r.lights,1,200))}${field('fans','Fans',num('fans',r.fans,1,100))}${field('ac','ACs',num('ac',r.ac,1,20))}${field('equip','Other load (kW)',num('equip',r.equip,.05,50))}</div>
+  ${field('slots','Timetable today',`<input id="rf-slots" value="${(r.slots||[]).map(([a,b])=>`${hm(a)}-${hm(b)}`).join(', ')}" placeholder="9:00-10:00, 14:00-15:30" autocomplete="off">`,'Separate classes with commas. Leave it empty for libraries, hostels and offices, where the motion sensor decides.')}
+  <p class="err" id="rf-err" hidden></p>
+  ${store.mode!=='db'?'<p class="formnote">Changes are saved in this browser only.</p>':''}
+ </form>`;
+ const m=modal({title:ex?`Edit ${ex.name}`:'Add a room',body,foot:`<button class="ulink" id="rfCancel">Cancel</button><button class="btn btn-primary" id="rfSave">${ex?'Save changes':'Add room'}</button>`});
+ $('#rfCancel',m).onclick=()=>back?manageModal():closeModal();
+ const submit=async e=>{e&&e.preventDefault();
+  const v=k=>$('#rf-'+k,m).value;const err=$('#rf-err',m);$$('.field',m).forEach(f=>f.classList.remove('bad'));
+  const fail=(k,msg)=>{err.textContent=msg;err.hidden=false;if(k){$('#f-'+k,m).classList.add('bad');$('#rf-'+k,m).focus()}};
+  const name=clean(v('name'),60);if(!name)return fail('name','Give the room a name.');
+  if(ROOMS.some(x=>x.id!==id&&x.name.toLowerCase()===name.toLowerCase()&&x.b===v('b')))return fail('name',`${BY[v('b')].name} already has a room called ${name}.`);
+  for(const k of ['floor','seats','lights','fans','ac','equip']){const x=+v(k);if(v(k)===''||!isFinite(x)||x<0)return fail(k,'Use a number of 0 or more.')}
+  const ps=parseSlots(v('slots'));if(ps.error)return fail('slots',ps.error);
+  const type=v('type');
+  const room=docToRoom({id:ex?ex.id:newId(v('b'),name),name,b:v('b'),type,floor:v('floor'),seats:v('seats'),lights:v('lights'),fans:v('fans'),ac:v('ac'),equip:v('equip'),
+   slots:ps.slots.map(([s,e])=>({s,e})),order:ex?ex.order:(ROOMS.reduce((a,x)=>Math.max(a,x.order||0),0)+1)});
+  if(ex&&type!==ex.type&&!ps.slots.length&&!['class','lab','seminar'].includes(type))room.slots=undefined;
+  const btn=$('#rfSave',m);btn.disabled=true;btn.textContent='Saving…';
+  const ok=await saveRoom(room);
+  if(!ok){btn.disabled=false;btn.textContent=ex?'Save changes':'Add room';return}
+  if(back)manageModal();else closeModal();
+  toast({title:ex?`${room.name} saved`:`${room.name} added`,sub:ex?'':`${BY[room.b].name} · node ${room.id}`,room:ex?null:room.id,small:!!ex});
+ };
+ $('#rfSave',m).onclick=submit;$('#roomFormEl',m).onsubmit=submit;
+ setTimeout(()=>{const n=$('#rf-name',m);if(n)n.focus()},40);
+}
+function confirmRemove(id,back){
+ const r=RM[id];if(!r||!store.canEdit)return;
+ const m=modal({title:'Remove room',body:`<h2 style="font-size:22px;margin-bottom:10px">Remove ${r.name}?</h2><p class="muted">${r.name} in ${BY[r.b].name} will disappear from the map, alerts and insights. Its sensor node keeps working, and you can add the room again later.</p>`,
+  foot:`<button class="ulink" id="rmNo">Cancel</button><button class="btn btn-danger" id="rmYes">${ic('trash',18,2)}Remove room</button>`});
+ $('#rmNo',m).onclick=()=>back?manageModal():closeModal();
+ $('#rmYes',m).onclick=async()=>{const b=$('#rmYes',m);b.disabled=true;const ok=await removeRoom(id);if(!ok){b.disabled=false;return}if(back)manageModal();else closeModal();toast({title:`${r.name} removed`,small:true})};
+}
+function manageModal(){
+ const ro=!store.canEdit;
+ const m=modal({title:'Manage rooms',wide:true,body:`${ro?'<p class="formnote" style="margin-bottom:12px">You can view this list. Only the owner and editors can change rooms.</p>':''}<div id="mgList"></div>`,
+  foot:ro?'':`<button class="ulink" id="mgReset">Restore sample rooms</button><button class="btn btn-primary" id="mgAdd">${ic('plus',18,2)}Add a room</button>`});
+ if(!ro){$('#mgAdd',m).onclick=()=>roomForm(null,true);$('#mgReset',m).onclick=()=>{const c=modal({title:'Restore sample rooms',body:`<h2 style="font-size:22px;margin-bottom:10px">Go back to the sample campus?</h2><p class="muted">This puts back the 20 sample rooms with their original names and settings. Rooms you added yourself will be removed.</p>`,foot:`<button class="ulink" id="rsNo">Cancel</button><button class="btn btn-primary" id="rsYes">Restore sample rooms</button>`});$('#rsNo',c).onclick=manageModal;$('#rsYes',c).onclick=async()=>{$('#rsYes',c).disabled=true;await restoreSample();manageModal()}}}
+ refreshManage();
+}
+function refreshManage(){
+ const L=$('#mgList');if(!L)return;const ro=!store.canEdit;
+ if(!ROOMS.length){L.innerHTML=`<div class="mempty"><h3 style="color:var(--ink);font-size:17px;margin-bottom:4px">No rooms yet</h3><p>${ro?'Nothing has been added.':'Add a room or restore the sample campus.'}</p></div>`;return}
+ L.innerHTML=BUILDINGS.map(b=>{const rs=ROOMS.filter(r=>r.b===b.id);if(!rs.length)return '';
+  return `<div class="mgroup"><h3><span>${b.name}</span><span>${rs.length} room${rs.length>1?'s':''}</span></h3>${rs.map(r=>{const parts=[];if(r.ac)parts.push(`${r.ac} AC${r.ac>1?'s':''}`);if(r.fans)parts.push(`${r.fans} fans`);parts.push(`${r.lights} lights`);
+   return `<div class="mrow"><div class="th">${art(r,0)}</div><div style="min-width:0"><b>${r.name}</b><small>${TYPE_LABEL[r.type]} · ${FLOOR(r.floor)} · ${r.seats} seats · ${parts.join(', ')}</small></div>${ro?'':`<div class="btns"><button class="btn btn-line btn-sm" data-ed="${r.id}">Edit</button><button class="btn btn-line btn-sm" data-rm="${r.id}" aria-label="Remove ${r.name}">${ic('trash',15,2)}</button></div>`}</div>`}).join('')}</div>`}).join('');
+ $$('[data-ed]',L).forEach(b=>b.onclick=()=>roomForm(b.dataset.ed,true));
+ $$('[data-rm]',L).forEach(b=>b.onclick=()=>confirmRemove(b.dataset.rm,true));
+}
+function namesModal(){
+ if(!store.canEdit)return;
+ const body=`<form class="form" id="nmForm" novalidate>
+  ${field('app','Site name',`<input id="nm-app" maxlength="32" value="${APP.appName}" placeholder="WattWatch">`,'Shown in the header, the browser tab and the Telegram bot.')}
+  ${field('owner','Your name or team',`<input id="nm-owner" maxlength="60" value="${APP.ownerName}" placeholder="For example, Nipun M S">`,'Shown on your profile and in the footer.')}
+  ${field('campus','Campus name',`<input id="nm-campus" maxlength="80" value="${APP.campusName}" placeholder="For example, RV College of Engineering">`)}
+  <div><p style="font-weight:600;margin-bottom:10px">Building names</p><div class="cols2">${BUILDINGS.map(b=>field('b'+b.id,DEFAULT_BNAMES[b.id][0],`<input id="nm-b${b.id}" maxlength="40" value="${b.name===DEFAULT_BNAMES[b.id][0]?'':b.name}" placeholder="${DEFAULT_BNAMES[b.id][0]}">`)).join('')}</div></div>
+  ${store.mode!=='db'?'<p class="formnote">Changes are saved in this browser only.</p>':''}
+ </form>`;
+ const m=modal({title:'Site and campus names',body,foot:`<button class="ulink" id="nmCancel">Cancel</button><button class="btn btn-primary" id="nmSave">Save names</button>`});
+ $('#nmCancel',m).onclick=closeModal;
+ const submit=async e=>{e&&e.preventDefault();const v=k=>clean($('#nm-'+k,m).value,80);
+  const s={appName:v('app')||'WattWatch',ownerName:v('owner')||'Facilities office',campusName:v('campus'),buildings:Object.fromEntries(BUILDINGS.map(b=>[b.id,v('b'+b.id)]))};
+  const btn=$('#nmSave',m);btn.disabled=true;btn.textContent='Saving…';
+  const ok=await saveSettings(s);if(!ok){btn.disabled=false;btn.textContent='Save names';return}
+  closeModal();toast({title:'Names saved',sub:`${s.appName} · ${s.ownerName}`,small:true})};
+ $('#nmSave',m).onclick=submit;$('#nmForm',m).onsubmit=submit;
+}
+function avatarMenu(){
+ if(openPop&&openPop.classList.contains('menu')){closePop();return}
+ closePop();const p=document.createElement('div');p.className='pop menu';p.style.right='0';p.style.left='auto';p.style.minWidth='260px';
+ const items=[['manage','Manage rooms'],['add','Add a room'],['names','Site and campus names'],['demo','Presenter controls']].filter(([k])=>store.canEdit||k==='manage'||k==='demo');
+ p.innerHTML=`<div class="menuhead"><b>${APP.ownerName}</b><small>${store.mode==='db'?(store.canEdit?'Can change rooms and names':'View only'):'Changes saved in this browser'}</small></div>`+items.map(([k,l])=>`<button data-k="${k}"><span>${l}</span></button>`).join('');
+ $('.right').appendChild(p);openPop=p;
+ $$('button',p).forEach(b=>b.onclick=e=>{e.stopPropagation();closePop();const k=b.dataset.k;
+  if(k==='manage')manageModal();if(k==='add')roomForm(null);if(k==='names')namesModal();if(k==='demo'){const d=$('#demo');d.hidden=false;renderDemo()}});
+}
+
+/* ============ router + loop ============ */
+let curView='explore';
+function route(){
+ const hsh=(location.hash||'#explore').slice(1);let v=hsh,arg=null;
+ if(hsh.startsWith('room-')){v='room';arg=hsh.slice(5)}
+ if(!['explore','room','alerts','insights','planner','hostels'].includes(v))v='explore';
+ curView=v;closePop();closeModal();
+ $$('main > section').forEach(s=>s.hidden=s.id!=='v-'+v);
+ $$('[data-v]').forEach(a=>a.classList.toggle('on',a.dataset.v===v||(v==='room'&&a.dataset.v==='explore')));
+ $('#searchrow').hidden=v!=='explore';$('#cats').hidden=v!=='explore';$('#mapToggle').hidden=v!=='explore';
+ document.body.classList.remove('show-map');syncMapToggle();
+ if(v==='room')renderRoom(arg);else curRoom=null;
+ if(v==='alerts')renderAlerts();if(v==='insights')renderInsights();if(v==='planner')renderPlanner();if(v==='hostels')renderHostels();
+ window.scrollTo(0,0);measureHdr();
+ document.title=v==='room'&&RM[arg]?`${RM[arg].name} · ${APP.appName}`:APP.appName;
+}
+function measureHdr(){document.documentElement.style.setProperty('--hdr',$('#top').offsetHeight+'px')}
+function syncMapToggle(){const on=document.body.classList.contains('show-map');$('#mapToggleTxt').textContent=on?'Show list':'Show map';$('#mapToggleIc').innerHTML=ic(on?'list':'map',16)}
+function refresh(){
+ const d=new Date(simNow);$('#clock').textContent=`${DAYS[d.getDay()]} ${fmtTime(simNow)}`;$('#speedTag').textContent=speed>1?` · ${speed}×`:'';
+ const open=ALERTS.filter(a=>a.status==='open').length;
+ [$('#navBadge'),$('#bellDot'),$('#tabBadge')].forEach(e=>{e.textContent=open;e.hidden=!open});
+ if(curView==='explore'&&store.mode!=='loading'){updateCards();updateMap();updateSummary();applyFilters()}
+ if(curView==='room')updateRoom();
+ if(curView==='alerts')renderAlerts();
+}
+function loop(){advance(2*speed);refresh()}
+
+/* boot */
+paintIcons();buildCats();buildCards();buildMap();
+updateCards();updateMap();updateSummary();applyFilters();
+$('#q').oninput=e=>{F.q=e.target.value;applyFilters()};
+$('#goSearch').onclick=()=>{closePop();applyFilters();$('#grid').scrollIntoView({behavior:'smooth',block:'start'})};
+$$('[data-pop]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(b.classList.contains('open'))closePop();else showPop(b,b.dataset.pop)});
+document.addEventListener('click',e=>{if(openPop&&!e.target.closest('.pop'))closePop()});
+$('#filterBtn').onclick=filtersModal;
+$('#bell').onclick=()=>location.hash='alerts';
+$('#avatarBtn').onclick=e=>{e.stopPropagation();avatarMenu()};
+$('#sumAdd').onclick=()=>roomForm(null);$('#sumManage').onclick=manageModal;
+$('#mapToggle').onclick=()=>{document.body.classList.toggle('show-map');syncMapToggle()};
+$('#demoBtn').onclick=()=>{const d=$('#demo');d.hidden=!d.hidden;if(!d.hidden)renderDemo()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closePop()}if((e.key==='d'||e.key==='D')&&!e.target.closest('input,select,textarea')&&!e.metaKey&&!e.ctrlKey){const d=$('#demo');d.hidden=!d.hidden;if(!d.hidden)renderDemo()}});
+let lastY=0;window.addEventListener('scroll',()=>{const y=scrollY;$('#top').classList.toggle('compact',y>60&&curView==='explore');lastY=y},{passive:true});
+new ResizeObserver(measureHdr).observe($('#top'));
+window.addEventListener('hashchange',route);
+route();initStore();refresh();
+setInterval(loop,2000);
+</script>
+</body>
+</html>
